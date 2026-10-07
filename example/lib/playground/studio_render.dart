@@ -10,10 +10,12 @@ class ArtboardContent extends StatelessWidget {
     required this.screen,
     this.onAction,
     this.allowBack = false,
+    this.content,
   });
   final Artboard screen;
   final ValueChanged<ScreenAction>? onAction;
   final bool allowBack;
+  final Widget? content;
 
   @override
   Widget build(BuildContext context) {
@@ -50,16 +52,18 @@ class ArtboardContent extends StatelessWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final (i, block)
-                      in document.childrenOf(null).indexed) ...[
-                    if (i > 0) SizedBox(height: document.gap),
-                    blockView(block),
-                  ],
-                ],
-              ),
+              child:
+                  content ??
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (i, block)
+                          in document.childrenOf(null).indexed) ...[
+                        if (i > 0) SizedBox(height: document.gap),
+                        blockView(block),
+                      ],
+                    ],
+                  ),
             ),
           ),
         ),
