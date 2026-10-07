@@ -330,6 +330,22 @@ class StudioController extends ChangeNotifier {
     );
   }
 
+  void removeBlock(String screenId, String blockId) {
+    final screen = project.find(screenId);
+    if (screen == null || screen.document.find(blockId) == null) return;
+    final ids = screen.document.subtreeIds(blockId);
+    selectedId = screenId;
+    replaceDocument(
+      screenId,
+      screen.document.copyWith(
+        blocks: [
+          for (final block in screen.document.blocks)
+            if (!ids.contains(block.id)) block,
+        ],
+      ),
+    );
+  }
+
   bool canDropBlock(BlockDrag drag, String screenId, String? parentId) {
     final target = project.find(screenId);
     if (target == null) return false;
