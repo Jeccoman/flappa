@@ -5,10 +5,10 @@ import 'document.dart';
 import 'render.dart';
 
 class BlockDrag {
-  const BlockDrag.create(this.kind) : id = null;
-  const BlockDrag.move(this.id) : kind = null;
+  const BlockDrag.create(this.kind) : id = null, sourceId = null;
+  const BlockDrag.move(this.id, {this.sourceId}) : kind = null;
   final BlockKind? kind;
-  final String? id;
+  final String? id, sourceId;
 }
 
 class ScreenCanvasContent extends StatelessWidget {
@@ -17,7 +17,15 @@ class ScreenCanvasContent extends StatelessWidget {
     required this.controller,
     required this.interact,
     required this.onSelect,
+    this.sourceId,
+    this.canDrop,
+    this.onDrop,
+    this.showHandles = false,
   });
+  final String? sourceId;
+  final bool Function(BlockDrag, String?)? canDrop;
+  final void Function(BlockDrag, String?, int)? onDrop;
+  final bool showHandles;
   final PlaygroundController controller;
   final bool interact;
   final ValueChanged<String> onSelect;
@@ -28,11 +36,17 @@ class ScreenCanvasContent extends StatelessWidget {
       key: ValueKey('drop-${parentId ?? 'root'}-$index'),
       onWillAcceptWithDetails: (details) =>
           !interact &&
-          (details.data.id == null
-              ? controller.canInsert(parentId)
-              : controller.canMove(details.data.id!, parentId)),
+          (canDrop?.call(details.data, parentId) ??
+              (details.data.sourceId == sourceId &&
+                  (details.data.id == null
+                      ? controller.canInsert(parentId)
+                      : controller.canMove(details.data.id!, parentId)))),
       onAcceptWithDetails: (details) {
         final drag = details.data;
+        if (onDrop != null) {
+          onDrop!(drag, parentId, index);
+          return;
+        }
         if (drag.id == null) {
           controller.add(drag.kind!, parentId: parentId, index: index);
         } else {
@@ -68,6 +82,8 @@ class ScreenCanvasContent extends StatelessWidget {
                   color: FTheme.of(context).colors.mutedForeground,
                 ),
               )
+            : showHandles
+            ? Container(height: 1, color: FTheme.of(context).colors.border)
             : null,
       ),
     );
@@ -140,7 +156,7 @@ class ScreenCanvasContent extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (selected || block.kind.isLayout)
+                if (showHandles || selected || block.kind.isLayout)
                   Row(
                     children: [
                       Expanded(
@@ -155,7 +171,8 @@ class ScreenCanvasContent extends StatelessWidget {
                         ),
                       ),
                       Draggable<BlockDrag>(
-                        data: BlockDrag.move(block.id),
+                        data: BlockDrag.move(block.id, sourceId: sourceId),
+                        dragAnchorStrategy: pointerDragAnchorStrategy,
                         feedback: Material(
                           elevation: 6,
                           borderRadius: BorderRadius.circular(8),
@@ -168,7 +185,7 @@ class ScreenCanvasContent extends StatelessWidget {
                           message: 'Drag to move ${block.kind.label}',
                           child: Semantics(
                             label:
-                                'Drag to move ${block.kind.label}. Move controls are in Properties.',
+                                'Drag to move ${block.kind.label}. Move controls are in ${sourceId == null ? 'Properties' : 'Edit components'}.',
                             child: SizedBox(
                               key: ValueKey('drag-${block.id}'),
                               width: 44,
