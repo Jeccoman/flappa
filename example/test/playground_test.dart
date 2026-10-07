@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flappa_ui/flappa_ui.dart';
 import 'package:flappa_ui_example/playground/document.dart';
 import 'package:flappa_ui_example/playground/playground_page.dart';
+import 'package:flappa_ui_example/playground/studio_page.dart';
 import 'package:flappa_ui_example/playground/render.dart';
 import 'package:flappa_ui_example/site/landing_page.dart';
 import 'package:flappa_ui_example/site/site_app.dart';
@@ -114,7 +115,11 @@ void main() {
     final deepCode = exportDart(deep);
     expect('One leaf in generated source'.allMatches(deepCode).length, 1);
     File('${folder.path}/deep.dart').writeAsStringSync(deepCode);
-    final result = await Process.run('dart', ['analyze', folder.path]);
+    final result = await Process.run('dart', [
+      '--suppress-analytics',
+      'analyze',
+      folder.path,
+    ]);
     expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
     expect(chartValues('8, bad, NaN, Infinity, -4'), [
       8.0,
@@ -233,7 +238,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Open playground'));
     await tester.pumpAndSettle();
-    expect(find.byType(PlaygroundPage), findsOneWidget);
+    expect(find.byType(StudioPage), findsOneWidget);
     await tester.tap(find.text('All components ↗'));
     await tester.pumpAndSettle();
     expect(find.text('Component library'), findsOneWidget);
