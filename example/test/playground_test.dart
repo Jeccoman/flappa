@@ -72,7 +72,13 @@ void main() {
     final folder = Directory('.dart_tool/playground_export_check')
       ..createSync(recursive: true);
     addTearDown(() => folder.deleteSync(recursive: true));
-    for (final name in ['Welcome', 'Settings', 'Dashboard', 'Blank']) {
+    for (final name in [
+      'Welcome',
+      'Settings',
+      'Dashboard',
+      'Layouts',
+      'Blank',
+    ]) {
       File(
         '${folder.path}/${name.toLowerCase()}.dart',
       ).writeAsStringSync(exportDart(templateDocument(name)));
@@ -82,14 +88,32 @@ void main() {
       dark: true,
       accent: 4,
       blocks: [
+        newBlock(BlockKind.container, 'outer'),
+        newBlock(BlockKind.row, 'inner').copyWith(parentId: 'outer'),
         for (final kind in BlockKind.values)
-          newBlock(
-            kind,
-            kind.name,
-          ).copyWith(title: 'Quotes " and \${notCode} \\ line\nnext'),
+          newBlock(kind, kind.name).copyWith(
+            title: 'Quotes " and \${notCode} \\ line\nnext',
+            parentId: 'inner',
+          ),
       ],
     );
     File('${folder.path}/all.dart').writeAsStringSync(exportDart(all));
+    final deep = ScreenDocument(
+      blocks: [
+        for (var i = 0; i < 7; i++)
+          newBlock(
+            BlockKind.row,
+            'r$i',
+          ).copyWith(parentId: i == 0 ? null : 'r${i - 1}'),
+        newBlock(
+          BlockKind.text,
+          'leaf',
+        ).copyWith(parentId: 'r6', title: 'One leaf in generated source'),
+      ],
+    );
+    final deepCode = exportDart(deep);
+    expect('One leaf in generated source'.allMatches(deepCode).length, 1);
+    File('${folder.path}/deep.dart').writeAsStringSync(deepCode);
     final result = await Process.run('dart', ['analyze', folder.path]);
     expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
     expect(chartValues('8, bad, NaN, Infinity, -4'), [
@@ -182,7 +206,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Invalid project. Check the JSON and use a version 1 Flappa export.',
+        'Invalid project. Use a Flappa export with valid layouts (version 1 or 2).',
       ),
       findsOneWidget,
     );
