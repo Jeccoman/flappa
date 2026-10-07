@@ -1,6 +1,14 @@
 name: flappa_ui
 description: Composable, accessible Flutter components with a shadcn-inspired design system, semantic tokens, and light and dark themes.
 version: 0.1.0
+repository: https://github.com/Jeccoman/flappa
+issue_tracker: https://github.com/Jeccoman/flappa/issues
+topics:
+  - flutter
+  - ui
+  - widgets
+  - design-system
+  - shadcn
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
