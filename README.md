@@ -2,7 +2,7 @@
 
 A shadcn-inspired Flutter UI library with light and dark themes, composable components, and source you can own.
 
-Includes a component explorer, a source-copy CLI, and a visual screen playground with Dart export.
+Includes a component explorer, a source-copy CLI, and a visual canvas with connected screens, interactive flows, and Flutter code export.
 
 [Live site](https://jeccoman.github.io/flappa/) · [Components](https://jeccoman.github.io/flappa/#/components) · [Playground](https://jeccoman.github.io/flappa/#/playground) · [pub.dev](https://pub.dev/packages/flappa_ui)
 
