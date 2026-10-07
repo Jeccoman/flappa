@@ -1,3 +1,4 @@
+import 'dart:ui' show SemanticsAction;
 import 'package:flappa_ui/flappa_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -116,6 +117,11 @@ void main() {
         matching: find.byType(SingleChildScrollView),
       ),
     );
+    final gutter = find.text(List.generate(80, (i) => '${i + 1}').join('\n'));
+    expect(
+      tester.getSize(gutter).height,
+      closeTo(tester.getSize(find.byType(SelectableText)).height, 1),
+    );
     for (final scroll in scrolls) {
       expect(scroll.controller!.position.maxScrollExtent, greaterThan(0));
       scroll.controller!.jumpTo(100);
@@ -146,5 +152,97 @@ void main() {
           .toPlainText(),
       'final b = 2;',
     );
+  });
+  testWidgets(
+    'wrapping preserves source, aligns the gutter and survives toggles',
+    (tester) async {
+      final source =
+          "final message = '${'long text ' * 24}';\n\nreturn message;\n";
+      await tester.pumpWidget(
+        host(FCodeBlock(code: source, maxHeight: 180), width: 280),
+      );
+      await tester.tap(find.byTooltip('Wrap lines'));
+      await tester.pumpAndSettle();
+      final scrolls = tester.widgetList<SingleChildScrollView>(
+        find.descendant(
+          of: find.byType(FCodeBlock),
+          matching: find.byType(SingleChildScrollView),
+        ),
+      );
+      expect(scrolls.map((s) => s.scrollDirection), [Axis.vertical]);
+      expect(
+        scrolls.single.controller!.position.maxScrollExtent,
+        greaterThan(0),
+      );
+      expect(
+        tester
+            .widget<SelectableText>(find.byType(SelectableText))
+            .textSpan!
+            .toPlainText(),
+        source,
+      );
+      expect(find.textContaining('1\n\n'), findsOneWidget);
+      await tester.tap(find.byTooltip('Scroll long lines'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('wrapped code supports enlarged text in narrow layouts', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(1.6)),
+          child: FCodeBlock(
+            code: 'final text = "${'long value ' * 10}";\nreturn text;',
+            wrapLines: true,
+          ),
+        ),
+        width: 320,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('JSON keys and string values have distinct highlighting', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(
+        const FCodeBlock(
+          code: '{"name": "Flappa"}',
+          language: FCodeLanguage.json,
+        ),
+      ),
+    );
+    final spans = tester
+        .widget<SelectableText>(find.byType(SelectableText))
+        .textSpan!
+        .children!
+        .cast<TextSpan>();
+    final key = spans.firstWhere((s) => s.text == '"name"');
+    final value = spans.firstWhere((s) => s.text == '"Flappa"');
+    expect(key.style!.color, isNot(value.style!.color));
+  });
+  testWidgets('icon controls expose names and wrap state to accessibility', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(host(const FCodeBlock(code: 'final a = 1;')));
+    expect(find.bySemanticsLabel('Wrap lines'), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(find.bySemanticsLabel('Wrap lines'))
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    await tester.tap(find.byTooltip('Wrap lines'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Scroll long lines'), findsOneWidget);
+    semantics.dispose();
   });
 }
