@@ -1,3 +1,8 @@
+## Unreleased
+
+- Website: multi-screen canvas with movable artboards, zoom, device sizes, navigation links, and interactive flows.
+- Website: export connected Flutter screens, AI prompts, editable project JSON, and screen PNGs; migrate earlier playground drafts.
+
 ## 0.2.0
 
 - Code blocks support line wrapping, a wrap toggle, a fixed line-number gutter, and distinct JSON/YAML key highlighting.
