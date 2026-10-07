@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Canvas supports component palette drag-and-drop, nested insertion, block reordering, and atomic cross-screen moves with touch support.
+
 - Website: multi-screen canvas with movable artboards, zoom, device sizes, navigation links, and interactive flows.
 - Website: export connected Flutter screens, AI prompts, editable project JSON, and screen PNGs; migrate earlier playground drafts.
 
