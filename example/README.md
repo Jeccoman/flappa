@@ -14,7 +14,11 @@ The app opens on the landing page. The browser routes are `/#/`, `/#/components`
 
 GitHub Actions publishes the site to GitHub Pages after formatting, analysis, tests, and the release build pass on `main`. The build uses `flutter build web --release --base-href /flappa/` so assets load from the repository's Pages path. Pull requests run the checks without deploying. To redeploy the current version, run the **Flutter** workflow manually from GitHub Actions.
 
-The playground opens a zoomable canvas inspired by [M3E Canvas](https://github.com/lnkiai/m3e-canvas), implemented with Flappa components. Add up to 20 screens, choose phone/tablet/desktop artboard sizes, and drag screen titles to arrange them. Select a screen in the sidebar to focus it; use the zoom controls or Fit all screens to navigate. On narrow displays, switch between Screens, Canvas, and Properties.
+The playground opens a zoomable canvas inspired by [M3E Canvas](https://github.com/lnkiai/m3e-canvas), implemented with Flappa components. Add up to 20 screens, choose phone/tablet/desktop artboard sizes, and drag screen titles to arrange them.
+
+In Properties, choose a **Device**: an iPhone-style phone, Android phone, tablet, laptop, or desktop monitor. Phone and tablet devices support **Rotate device**; finishes include Graphite, Silver, and Blue. Device presets use logical Flutter viewport sizes, with status bars and safe areas inside the frame. Choose **No device frame** for a plain artboard. Existing projects stay frameless until you choose a device; new screens inherit the selected screen’s device settings. Device choices persist in project JSON, appear in Test flow, and are included in PNG exports.
+
+Select a screen in the sidebar to focus it; use the zoom controls or Fit all screens to navigate. On narrow displays, switch between Screens, Canvas, and Properties.
 
 Keep **Edit blocks** enabled to drag components from the sidebar directly into artboards. Drop between blocks to reorder, inside rows/columns/containers to nest, or on another artboard to move a block and its children there. Use each block’s drag handle to move it. Button links move with their blocks, and each drop is one Undo step. On mobile, hold a component in the horizontal palette for a moment, then drag it into the canvas; tapping adds it to the selected screen. Disable Edit blocks to inspect the clean design. PNG exports always omit editing controls.
 
