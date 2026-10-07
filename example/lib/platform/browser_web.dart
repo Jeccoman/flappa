@@ -14,17 +14,21 @@ extension type _Anchor(JSObject _) implements JSObject {
   external void click();
 }
 
-String? readDraft() {
+String? readDraft() => readStorage('flappa.playground.v1');
+
+String? readStorage(String key) {
   try {
-    return _read('flappa.playground.v1'.toJS)?.toDart;
+    return _read(key.toJS)?.toDart;
   } catch (_) {
     return null;
   }
 }
 
-bool saveDraft(String value) {
+bool saveDraft(String value) => saveStorage('flappa.playground.v1', value);
+
+bool saveStorage(String key, String value) {
   try {
-    _write('flappa.playground.v1'.toJS, value.toJS);
+    _write(key.toJS, value.toJS);
     return true;
   } catch (_) {
     return false;
@@ -39,6 +43,18 @@ bool downloadText(String filename, String content) {
       mimeType: 'text/plain',
       encoding: utf8,
     ).toString().toJS;
+    anchor.download = filename.toJS;
+    anchor.click();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+bool downloadBytes(String filename, List<int> bytes, String mimeType) {
+  try {
+    final anchor = _element('a'.toJS);
+    anchor.href = Uri.dataFromBytes(bytes, mimeType: mimeType).toString().toJS;
     anchor.download = filename.toJS;
     anchor.click();
     return true;
