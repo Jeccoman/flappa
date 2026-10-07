@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'document.dart';
 import 'canvas_editor.dart';
+import 'devices.dart';
 
 enum FlowTransition { slide, fade, instant }
 
@@ -27,9 +28,24 @@ class Artboard {
     this.position = const Offset(80, 80),
     this.size = const Size(390, 844),
     this.notes = '',
+    this.deviceId = 'none',
+    this.landscape = false,
+    this.finish = DeviceFinish.graphite,
     Map<String, ScreenAction> actions = const {},
   }) : actions = Map.unmodifiable(actions);
-  final String id, notes;
+  final String id, notes, deviceId;
+  final bool landscape;
+  final DeviceFinish finish;
+  CanvasDevice get device => CanvasDevice.find(deviceId)!;
+  Size get frameSize => device.frameSize(size);
+  Artboard withDevice(CanvasDevice value) => copyWith(
+    deviceId: value.id,
+    landscape: false,
+    size: value.kind == DeviceKind.none ? size : value.viewport,
+  );
+  Artboard rotated() => device.canRotate
+      ? copyWith(landscape: !landscape, size: device.screenSize(!landscape))
+      : this;
   final ScreenDocument document;
   final Offset position;
   final Size size;
@@ -41,6 +57,9 @@ class Artboard {
     Offset? position,
     Size? size,
     String? notes,
+    String? deviceId,
+    bool? landscape,
+    DeviceFinish? finish,
     Map<String, ScreenAction>? actions,
   }) => Artboard(
     id: id ?? this.id,
@@ -48,6 +67,9 @@ class Artboard {
     position: position ?? this.position,
     size: size ?? this.size,
     notes: notes ?? this.notes,
+    deviceId: deviceId ?? this.deviceId,
+    landscape: landscape ?? this.landscape,
+    finish: finish ?? this.finish,
     actions: actions ?? this.actions,
   );
 
@@ -59,6 +81,9 @@ class Artboard {
     'width': size.width,
     'height': size.height,
     'notes': notes,
+    'device': deviceId,
+    'landscape': landscape,
+    'finish': finish.name,
     'actions': actions.map((key, value) => MapEntry(key, value.toJson())),
   };
 }
@@ -162,20 +187,39 @@ class StudioProject {
           transition: transition,
         );
       }
+      final deviceId = map['device'] ?? 'none';
+      final landscape = map['landscape'] ?? false;
+      final finish = DeviceFinish.values
+          .where((value) => value.name == (map['finish'] ?? 'graphite'))
+          .firstOrNull;
+      if (deviceId is! String || landscape is! bool || finish == null) {
+        invalid();
+      }
+      final device = CanvasDevice.find(deviceId);
+      final size = Size(
+        number(map, 'width', 320, 1600),
+        number(map, 'height', 320, 1600),
+      );
+      if (device == null ||
+          (landscape && !device.canRotate) ||
+          (device.kind != DeviceKind.none &&
+              size != device.screenSize(landscape))) {
+        invalid();
+      }
       screens.add(
         Artboard(
           id: map['id'],
           document: document,
           notes: map['notes'],
+          deviceId: deviceId,
+          landscape: landscape,
+          finish: finish,
           actions: actions,
           position: Offset(
             number(map, 'x', 0, 10000),
             number(map, 'y', 0, 10000),
           ),
-          size: Size(
-            number(map, 'width', 320, 1600),
-            number(map, 'height', 480, 1400),
-          ),
+          size: size,
         ),
       );
     }
@@ -211,6 +255,7 @@ StudioProject starterProject([ScreenDocument? draft]) {
     screens: [
       Artboard(
         id: 'welcome',
+        deviceId: 'iphone',
         document: welcome,
         actions: {
           if (button != null) button.id: const ScreenAction(target: 'settings'),
@@ -218,6 +263,7 @@ StudioProject starterProject([ScreenDocument? draft]) {
       ),
       Artboard(
         id: 'settings',
+        deviceId: 'iphone',
         document: settings,
         position: const Offset(640, 80),
         actions: {
@@ -427,6 +473,10 @@ class StudioController extends ChangeNotifier {
     final screen = Artboard(
       id: id,
       document: templateDocument(template),
+      deviceId: selected.deviceId,
+      size: selected.size,
+      landscape: selected.landscape,
+      finish: selected.finish,
       position: _nextPosition(),
     );
     selectedId = id;
@@ -434,7 +484,7 @@ class StudioController extends ChangeNotifier {
   }
 
   Offset _nextPosition() => Offset(
-    (selected.position.dx + selected.size.width + 170)
+    (selected.position.dx + selected.frameSize.width + 170)
         .clamp(0, 10000)
         .toDouble(),
     selected.position.dy,
