@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../theme/theme.dart';
 import 'button.dart';
 
-/// Languages supported by the lightweight display highlighter.
 enum FCodeLanguage {
   dart('Dart', 'example.dart'),
   yaml('YAML', 'pubspec.yaml'),
@@ -18,12 +17,6 @@ enum FCodeLanguage {
   final String label, filename;
 }
 
-/// Selectable syntax-colored source with a separate line-number gutter.
-///
-/// Requires bounded width. Long lines scroll without wrapping; tall snippets
-/// scroll within [maxHeight]. Copy always writes the original [code], excluding
-/// the gutter. The highlighter is for display, not language validation. Supply
-/// [fontFamily] to use a monospace font bundled in your application.
 class FCodeBlock extends StatefulWidget {
   const FCodeBlock({
     super.key,
@@ -34,6 +27,8 @@ class FCodeBlock extends StatefulWidget {
     this.maxHeight = 400,
     this.fontFamily = 'monospace',
     this.fontSize = 13,
+    this.wrapLines = false,
+    this.showWrapToggle = true,
   }) : assert(maxHeight > 0),
        assert(fontSize > 0);
 
@@ -41,8 +36,8 @@ class FCodeBlock extends StatefulWidget {
   final FCodeLanguage language;
   final String? filename;
   final bool showLineNumbers;
+  final bool wrapLines, showWrapToggle;
 
-  /// Maximum height of the source area, excluding the toolbar.
   final double maxHeight;
   final String fontFamily;
   final double fontSize;
@@ -56,11 +51,14 @@ class _FCodeBlockState extends State<FCodeBlock> {
   final _vertical = ScrollController();
   Timer? _reset;
   String _copyState = 'Copy';
+  late bool _wrapLines = widget.wrapLines;
+  bool _copying = false;
   late List<_Token> _tokens = _tokenize(widget.code, widget.language);
 
   @override
   void didUpdateWidget(covariant FCodeBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.wrapLines != widget.wrapLines) _wrapLines = widget.wrapLines;
     if (widget.code != oldWidget.code ||
         widget.language != oldWidget.language) {
       _tokens = _tokenize(widget.code, widget.language);
@@ -78,13 +76,17 @@ class _FCodeBlockState extends State<FCodeBlock> {
   }
 
   Future<void> _copy() async {
+    if (_copying) return;
+    setState(() => _copying = true);
     final source = widget.code;
     String status;
     try {
       await Clipboard.setData(ClipboardData(text: source));
       status = 'Copied';
-    } on PlatformException {
+    } catch (_) {
       status = 'Retry copy';
+    } finally {
+      if (mounted) setState(() => _copying = false);
     }
     if (!mounted || source != widget.code) return;
     _reset?.cancel();
@@ -168,10 +170,28 @@ class _FCodeBlockState extends State<FCodeBlock> {
                       ),
                       const SizedBox(width: 12),
                     ],
+                    if (widget.showWrapToggle)
+                      MergeSemantics(
+                        child: Semantics(
+                          toggled: _wrapLines,
+                          child: FButton(
+                            onPressed: () =>
+                                setState(() => _wrapLines = !_wrapLines),
+                            variant: _wrapLines
+                                ? FButtonVariant.secondary
+                                : FButtonVariant.ghost,
+                            size: FButtonSize.icon,
+                            tooltip: _wrapLines
+                                ? 'Scroll long lines'
+                                : 'Wrap lines',
+                            child: const Icon(Icons.wrap_text, size: 16),
+                          ),
+                        ),
+                      ),
                     Semantics(
                       liveRegion: true,
                       child: FButton(
-                        onPressed: _copy,
+                        onPressed: _copying ? null : _copy,
                         variant: FButtonVariant.ghost,
                         size: FButtonSize.small,
                         tooltip: _copyState == 'Copied'
@@ -195,92 +215,130 @@ class _FCodeBlockState extends State<FCodeBlock> {
                 ),
               ),
             ),
-            // Both axes have their own controller; no competing primary scroll
-            // positions when several snippets appear on the same screen.
             ConstrainedBox(
               constraints: BoxConstraints(maxHeight: widget.maxHeight),
-              child: LayoutBuilder(
-                builder: (context, constraints) => Scrollbar(
+              child: Scrollbar(
+                controller: _vertical,
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.vertical,
+                child: SingleChildScrollView(
                   controller: _vertical,
-                  notificationPredicate: (notification) =>
-                      notification.metrics.axis == Axis.vertical,
-                  child: Scrollbar(
-                    controller: _horizontal,
-                    thumbVisibility: true,
-                    notificationPredicate: (notification) =>
-                        notification.metrics.axis == Axis.horizontal,
-                    child: SingleChildScrollView(
-                      controller: _horizontal,
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: constraints.maxWidth,
-                        ),
-                        child: SingleChildScrollView(
-                          controller: _vertical,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 20,
-                              horizontal: 16,
-                            ),
-                            child: Directionality(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 20,
+                      horizontal: 16,
+                    ),
+                    child: Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final span = TextSpan(
+                            children: [
+                              for (final token in _tokens)
+                                TextSpan(
+                                  text: token.text,
+                                  style: TextStyle(
+                                    color: syntax.color(token.kind),
+                                  ),
+                                ),
+                            ],
+                          );
+                          final scaler = MediaQuery.textScalerOf(context);
+                          final numberPainter = TextPainter(
+                            text: TextSpan(text: '$lines', style: style),
+                            textDirection: TextDirection.ltr,
+                            textScaler: scaler,
+                          )..layout();
+                          final gutterWidth = widget.showLineNumbers
+                              ? numberPainter.width.ceilToDouble() + 34
+                              : 0.0;
+                          numberPainter.dispose();
+                          final contentWidth =
+                              (constraints.maxWidth - gutterWidth).clamp(
+                                1.0,
+                                double.infinity,
+                              );
+                          var numbers = List.generate(
+                            lines,
+                            (index) => '${index + 1}',
+                          ).join('\n');
+                          if (_wrapLines && widget.showLineNumbers) {
+                            final painter = TextPainter(
+                              text: TextSpan(
+                                style: style,
+                                children: span.children,
+                              ),
+                              strutStyle: strut,
                               textDirection: TextDirection.ltr,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (widget.showLineNumbers) ...[
-                                    ExcludeSemantics(
-                                      child: SelectionContainer.disabled(
-                                        child: Container(
-                                          padding: const EdgeInsets.only(
-                                            right: 16,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            border: Border(
-                                              right: BorderSide(
-                                                color: colors.border,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            List.generate(
-                                              lines,
-                                              (index) => '${index + 1}',
-                                            ).join('\n'),
-                                            textAlign: TextAlign.right,
-                                            style: style.copyWith(
-                                              color: dark
-                                                  ? const Color(0xFF787D88)
-                                                  : const Color(0xFF858993),
-                                            ),
-                                            strutStyle: strut,
+                              textScaler: scaler,
+                            )..layout(maxWidth: contentWidth);
+                            var line = 1;
+                            var first = true;
+                            numbers = [
+                              for (final metric in painter.computeLineMetrics())
+                                (() {
+                                  final label = first ? '$line' : '';
+                                  first = metric.hardBreak;
+                                  if (metric.hardBreak) line++;
+                                  return label;
+                                })(),
+                            ].join('\n');
+                            painter.dispose();
+                          }
+                          final source = SelectableText.rich(
+                            span,
+                            style: style,
+                            strutStyle: strut,
+                            textDirection: TextDirection.ltr,
+                          );
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (widget.showLineNumbers)
+                                ExcludeSemantics(
+                                  child: SelectionContainer.disabled(
+                                    child: Container(
+                                      width: gutterWidth - 16,
+                                      margin: const EdgeInsets.only(right: 16),
+                                      padding: const EdgeInsets.only(right: 16),
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          right: BorderSide(
+                                            color: colors.border,
                                           ),
                                         ),
                                       ),
+                                      child: Text(
+                                        numbers,
+                                        textAlign: TextAlign.right,
+                                        softWrap: false,
+                                        style: style.copyWith(
+                                          color: syntax.color(_Kind.comment),
+                                        ),
+                                        strutStyle: strut,
+                                      ),
                                     ),
-                                    const SizedBox(width: 16),
-                                  ],
-                                  SelectableText.rich(
-                                    TextSpan(
-                                      children: [
-                                        for (final token in _tokens)
-                                          TextSpan(
-                                            text: token.text,
-                                            style: TextStyle(
-                                              color: syntax.color(token.kind),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    style: style,
-                                    strutStyle: strut,
-                                    textDirection: TextDirection.ltr,
                                   ),
-                                ],
+                                ),
+                              Expanded(
+                                child: _wrapLines
+                                    ? source
+                                    : Scrollbar(
+                                        controller: _horizontal,
+                                        thumbVisibility: true,
+                                        notificationPredicate: (notification) =>
+                                            notification.metrics.axis ==
+                                            Axis.horizontal,
+                                        child: SingleChildScrollView(
+                                          controller: _horizontal,
+                                          scrollDirection: Axis.horizontal,
+                                          child: source,
+                                        ),
+                                      ),
                               ),
-                            ),
-                          ),
-                        ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -391,8 +449,6 @@ final _identifier = RegExp(r'[a-zA-Z_$][\w$]*');
 final _number = RegExp(r'(?:0[xX][0-9a-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)');
 final _space = RegExp(r'\s');
 
-/// Scans in one direction so comments/strings cannot color each other's text.
-/// Every source character is retained, including trailing newlines and tabs.
 List<_Token> _tokenize(String code, FCodeLanguage language) {
   if (language == FCodeLanguage.plain) return [_Token(code, _Kind.plain)];
   final tokens = <_Token>[];
@@ -449,7 +505,16 @@ List<_Token> _tokenize(String code, FCodeLanguage language) {
           i++;
         }
       }
-      kind = _Kind.string;
+      var next = i;
+      while (next < code.length && _space.hasMatch(code[next])) {
+        next++;
+      }
+      kind =
+          (language == FCodeLanguage.json || language == FCodeLanguage.yaml) &&
+              next < code.length &&
+              code[next] == ':'
+          ? _Kind.property
+          : _Kind.string;
     } else {
       final number = _number.matchAsPrefix(code, i);
       final word = _identifier.matchAsPrefix(code, i);
