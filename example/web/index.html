@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Thoughtful Flutter components for your next big idea. Explore 71 widgets, build screens in the visual playground, and export Flutter code with Flappa UI.">
+  <meta name="theme-color" content="#132a22">
+  <meta property="og:title" content="Flappa UI — Less boilerplate. More beautiful.">
+  <meta property="og:description" content="Composable Flutter components, a visual screen playground, and code you can make your own. Free and open source.">
+  <meta property="og:type" content="website">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Flappa UI">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.json">
+  <title>Flappa UI — Build something beautiful</title>
+  <style>
+    body { margin: 0; background: #fff; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; font: 14px system-ui, sans-serif; color: #647169; background: #fff; }
+    #loading strong { color: #132a22; font-size: 32px; letter-spacing: -1.5px; }
+    #loading p { margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div id="loading" role="status"><strong>flappa / ui</strong><p>A little less boilerplate. A lot more possibility.</p></div>
+  <noscript>Enable JavaScript to explore Flappa UI and build screens in the playground.</noscript>
+  <script>window.addEventListener('flutter-first-frame', () => document.getElementById('loading')?.remove());</script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
