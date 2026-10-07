@@ -37,8 +37,13 @@ List<double> chartValues(String text) => text.split(',').take(12).map((entry) {
 }).toList();
 
 class ScreenBlockView extends StatefulWidget {
-  const ScreenBlockView({super.key, required this.block});
+  const ScreenBlockView({
+    super.key,
+    required this.block,
+    this.children = const [],
+  });
   final ScreenBlock block;
+  final List<Widget> children;
   @override
   State<ScreenBlockView> createState() => _ScreenBlockViewState();
 }
@@ -57,6 +62,10 @@ class _ScreenBlockViewState extends State<ScreenBlockView> {
   Widget build(BuildContext context) {
     final block = widget.block;
     return switch (block.kind) {
+      BlockKind.row || BlockKind.column || BlockKind.container => ScreenLayout(
+        block: block,
+        children: widget.children,
+      ),
       BlockKind.heading => Text(
         block.title,
         style: const TextStyle(
@@ -76,7 +85,7 @@ class _ScreenBlockViewState extends State<ScreenBlockView> {
       ),
       BlockKind.input => FField(
         label: block.title,
-        child: FInput(placeholder: block.detail),
+        child: FInput(placeholder: block.detail, semanticLabel: block.title),
       ),
       BlockKind.button => FButton(
         onPressed: () => showFToast(context, title: block.title),
@@ -130,18 +139,120 @@ class _ScreenBlockViewState extends State<ScreenBlockView> {
   }
 }
 
+class ScreenLayout extends StatelessWidget {
+  const ScreenLayout({super.key, required this.block, required this.children});
+  final ScreenBlock block;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Padding(
+      padding: EdgeInsets.all(block.padding),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontal =
+              block.kind == BlockKind.row &&
+              (!block.responsive ||
+                  (constraints.maxWidth >= 480 &&
+                      constraints.maxWidth >=
+                          children.length * 180 +
+                              (children.length - 1) * block.gap));
+          if (children.isEmpty) return const SizedBox(height: 24);
+          final spaced = <Widget>[
+            for (final (index, child) in children.indexed) ...[
+              if (index > 0)
+                SizedBox(
+                  width: horizontal ? block.gap : null,
+                  height: horizontal ? null : block.gap,
+                ),
+              if (horizontal) Expanded(child: child) else child,
+            ],
+          ];
+          return horizontal
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: spaced,
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: spaced,
+                );
+        },
+      ),
+    );
+    if (block.kind != BlockKind.container) return content;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: FTheme.of(context).colors.muted,
+        border: Border.all(color: FTheme.of(context).colors.border),
+        borderRadius: FTheme.of(context).borderRadius,
+      ),
+      child: content,
+    );
+  }
+}
+
 String dartString(String value) => jsonEncode(value).replaceAll(r'$', r'\$');
 
 String exportDart(ScreenDocument document) {
-  String blockCode(ScreenBlock block, int index) {
+  late String Function(ScreenBlock) blockCode;
+  String childrenCode(List<ScreenBlock> blocks, double gap, bool horizontal) =>
+      [
+        for (final (i, child) in blocks.indexed) ...[
+          if (i > 0) 'const SizedBox(${horizontal ? 'width' : 'height'}: $gap)',
+          horizontal
+              ? 'Expanded(child: ${blockCode(child)})'
+              : blockCode(child),
+        ],
+      ].join(',\n');
+  blockCode = (ScreenBlock block) {
+    final index = document.blocks.indexOf(block);
+    if (block.kind.isLayout) {
+      final children = document.childrenOf(block.id);
+      final String layout;
+      if (children.isEmpty) {
+        layout = 'const SizedBox(height: 24)';
+      } else if (block.kind == BlockKind.row && block.responsive) {
+        final widgets = children.map(blockCode).join(',\n');
+        layout =
+            """LayoutBuilder(builder: (context, constraints) {
+          final children = <Widget>[$widgets];
+          final horizontal = constraints.maxWidth >= 480 && constraints.maxWidth >= ${children.length * 180 + (children.length - 1) * block.gap};
+          final spaced = <Widget>[
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) SizedBox(width: horizontal ? ${block.gap} : null, height: horizontal ? null : ${block.gap}),
+              if (horizontal) Expanded(child: children[i]) else children[i],
+            ],
+          ];
+          return horizontal
+              ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: spaced)
+              : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: spaced);
+        })""";
+      } else if (block.kind == BlockKind.row) {
+        layout =
+            'Row(crossAxisAlignment: CrossAxisAlignment.start, children: [${childrenCode(children, block.gap, true)}])';
+      } else {
+        layout =
+            'Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [${childrenCode(children, block.gap, false)}])';
+      }
+      final padded =
+          'Padding(padding: const EdgeInsets.all(${block.padding}), child: $layout)';
+      return block.kind == BlockKind.container
+          ? 'DecoratedBox(decoration: BoxDecoration(color: FTheme.of(context).colors.muted, border: Border.all(color: FTheme.of(context).colors.border), borderRadius: FTheme.of(context).borderRadius), child: $padded)'
+          : padded;
+    }
     final title = dartString(block.title), detail = dartString(block.detail);
     return switch (block.kind) {
+      BlockKind.row ||
+      BlockKind.column ||
+      BlockKind.container => throw StateError('Layout handled above'),
       BlockKind.heading =>
         'Text($title, style: const TextStyle(fontSize: 32, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -1))',
       BlockKind.text =>
         'Text($title, style: TextStyle(fontSize: 14, height: 1.6, color: FTheme.of(context).colors.mutedForeground))',
       BlockKind.input =>
-        'FField(label: $title, child: FInput(placeholder: $detail))',
+        'FField(label: $title, child: FInput(placeholder: $detail, semanticLabel: $title))',
       BlockKind.button =>
         'FButton(onPressed: () => showFToast(context, title: $title), variant: FButtonVariant.${FButtonVariant.values[block.variant].name}, child: Text($title))',
       BlockKind.card =>
@@ -162,7 +273,7 @@ String exportDart(ScreenDocument document) {
       BlockKind.chart =>
         'FCard(title: Text($title), child: FBarChart(height: 180, data: const [${chartValues(block.detail).indexed.map((entry) => 'FChartDatum(label: "${entry.$1 + 1}", value: ${entry.$2})').join(', ')}]))',
     };
-  }
+  };
 
   final accent = accentColors[document.accent];
   final brightness = document.dark ? 'dark' : 'light';
@@ -175,9 +286,9 @@ String exportDart(ScreenDocument document) {
         '  bool _value$i = ${block.value >= .5};',
   ].join('\n');
   final children = [
-    for (final (i, block) in document.blocks.indexed) ...[
+    for (final (i, block) in document.childrenOf(null).indexed) ...[
       if (i > 0) '              const SizedBox(height: ${document.gap}),',
-      '              ${blockCode(block, i)},',
+      '              ${blockCode(block)},',
     ],
   ].join('\n');
   return '''import 'package:flutter/material.dart';
