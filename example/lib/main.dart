@@ -251,7 +251,7 @@ class _ShowcasePageState extends State<ShowcasePage> {
         ),
         const SizedBox(width: 8),
         const Text(
-          'v0.1.0',
+          'v0.2.0',
           style: TextStyle(fontSize: 11, fontFamily: 'monospace'),
         ),
       ],
