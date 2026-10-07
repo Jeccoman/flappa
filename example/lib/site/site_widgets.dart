@@ -1,5 +1,22 @@
 import 'package:flappa_ui/flappa_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/link.dart';
+
+class PackageLink extends StatelessWidget {
+  const PackageLink({super.key});
+
+  @override
+  Widget build(BuildContext context) => Link(
+    uri: Uri.parse('https://pub.dev/packages/flappa_ui'),
+    target: LinkTarget.blank,
+    builder: (context, followLink) => FButton(
+      onPressed: followLink,
+      variant: FButtonVariant.link,
+      trailing: const Icon(Icons.open_in_new, size: 16),
+      child: const Text('View on pub.dev'),
+    ),
+  );
+}
 
 class SiteBrand extends StatelessWidget {
   const SiteBrand({super.key, required this.onPressed});
