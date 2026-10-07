@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import '../platform/browser.dart' as browser;
 import '../site/site_widgets.dart';
 import 'document.dart';
+import 'canvas_editor.dart';
+import 'studio_drag.dart';
 import 'playground_page.dart';
 import 'studio_document.dart';
 import 'studio_render.dart';
@@ -34,6 +36,7 @@ class _StudioPageState extends State<StudioPage> {
   String? _editing;
   int _panel = 1;
   bool _fitted = false, _dirty = false;
+  bool _parts = true, _arrange = true, _capturing = false;
   Size _viewport = Size.zero;
   Offset? _dragPosition, _dragPointer;
   String? _dragId;
@@ -185,6 +188,7 @@ class _StudioPageState extends State<StudioPage> {
 
   Future<void> _png() async {
     try {
+      setState(() => _capturing = true);
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
       final boundary =
@@ -212,6 +216,8 @@ class _StudioPageState extends State<StudioPage> {
       if (mounted) {
         showFToast(context, title: 'Could not capture this screen. Try again.');
       }
+    } finally {
+      if (mounted) setState(() => _capturing = false);
     }
   }
 
@@ -322,6 +328,17 @@ class _StudioPageState extends State<StudioPage> {
     );
   }
 
+  void _addPart(BlockKind kind) {
+    final screen = _controller.selected;
+    _controller.dropBlock(
+      BlockDrag.create(kind),
+      screen.id,
+      null,
+      screen.document.childrenOf(null).length,
+    );
+    setState(() => _arrange = true);
+  }
+
   Widget _screenList() {
     final c = FTheme.of(context).colors;
     return Column(
@@ -337,11 +354,31 @@ class _StudioPageState extends State<StudioPage> {
                 _controller.commit(_project.copyWith(name: value)),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              for (final parts in [true, false])
+                Expanded(
+                  child: FButton(
+                    size: FButtonSize.small,
+                    variant: _parts == parts
+                        ? FButtonVariant.secondary
+                        : FButtonVariant.ghost,
+                    onPressed: () => setState(() => _parts = parts),
+                    child: Text(parts ? 'Blocks' : 'Screens'),
+                  ),
+                ),
+            ],
+          ),
+        ),
         const FSeparator(),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
           child: Text(
-            'SCREENS  /  ${_project.screens.length}',
+            _parts
+                ? 'DRAG A COMPONENT ONTO A SCREEN'
+                : 'SCREENS  /  ${_project.screens.length}',
             style: TextStyle(
               fontSize: 10,
               letterSpacing: 1.5,
@@ -351,45 +388,56 @@ class _StudioPageState extends State<StudioPage> {
           ),
         ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            children: [
-              for (final screen in _project.screens)
-                ListTile(
-                  key: ValueKey('screen-list-${screen.id}'),
-                  dense: true,
-                  selected: screen.id == _controller.selectedId,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+          child: _parts
+              ? ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: BlockKind.values.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) => CanvasPart(
+                    kind: BlockKind.values[index],
+                    onDragStarted: () => setState(() => _arrange = true),
+                    onAdd: () => _addPart(BlockKind.values[index]),
                   ),
-                  leading: Icon(
-                    screen.size.width < 600
-                        ? Icons.smartphone_outlined
-                        : Icons.desktop_windows_outlined,
-                    size: 18,
-                  ),
-                  title: Text(
-                    screen.document.name.isEmpty
-                        ? 'Untitled screen'
-                        : screen.document.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: screen.id == _project.startId
-                      ? const Text(
-                          'Start screen',
-                          style: TextStyle(fontSize: 10),
-                        )
-                      : null,
-                  onTap: () {
-                    _controller.select(screen.id);
-                    setState(() => _panel = 1);
-                    _fit(selected: true);
-                  },
-                  onLongPress: () => _edit(screen),
+                )
+              : ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    for (final screen in _project.screens)
+                      ListTile(
+                        key: ValueKey('screen-list-${screen.id}'),
+                        dense: true,
+                        selected: screen.id == _controller.selectedId,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        leading: Icon(
+                          screen.size.width < 600
+                              ? Icons.smartphone_outlined
+                              : Icons.desktop_windows_outlined,
+                          size: 18,
+                        ),
+                        title: Text(
+                          screen.document.name.isEmpty
+                              ? 'Untitled screen'
+                              : screen.document.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: screen.id == _project.startId
+                            ? const Text(
+                                'Start screen',
+                                style: TextStyle(fontSize: 10),
+                              )
+                            : null,
+                        onTap: () {
+                          _controller.select(screen.id);
+                          setState(() => _panel = 1);
+                          _fit(selected: true);
+                        },
+                        onLongPress: () => _edit(screen),
+                      ),
+                  ],
                 ),
-            ],
-          ),
         ),
         Padding(
           padding: const EdgeInsets.all(16),
@@ -738,12 +786,20 @@ class _StudioPageState extends State<StudioPage> {
                   key: ValueKey('artboard-${screen.id}'),
                   onTap: () => _controller.select(screen.id),
                   onDoubleTap: () => _edit(screen),
-                  child: AbsorbPointer(
-                    child: ExcludeSemantics(
-                      child: RepaintBoundary(
-                        key: _images.putIfAbsent(screen.id, GlobalKey.new),
-                        child: ClipRect(child: ArtboardContent(screen: screen)),
-                      ),
+                  child: RepaintBoundary(
+                    key: _images.putIfAbsent(screen.id, GlobalKey.new),
+                    child: ClipRect(
+                      child: _arrange && !_capturing
+                          ? DraggableArtboard(
+                              key: ValueKey('editable-${screen.id}'),
+                              screen: screen,
+                              controller: _controller,
+                            )
+                          : AbsorbPointer(
+                              child: ExcludeSemantics(
+                                child: ArtboardContent(screen: screen),
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -807,7 +863,9 @@ class _StudioPageState extends State<StudioPage> {
               top: 12,
               child: IgnorePointer(
                 child: Text(
-                  'Drag a screen title to move · Double-click to edit',
+                  _arrange
+                      ? 'Drag components or their handles · Drop into highlighted slots'
+                      : 'Drag a screen title to move · Double-click to edit',
                   style: TextStyle(fontSize: 11, color: c.mutedForeground),
                 ),
               ),
@@ -826,6 +884,12 @@ class _StudioPageState extends State<StudioPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        FToggle(
+                          value: _arrange,
+                          onChanged: (value) =>
+                              setState(() => _arrange = value),
+                          child: const Text('Edit blocks'),
+                        ),
                         FButton(
                           tooltip: 'Zoom out',
                           size: FButtonSize.icon,
@@ -1014,11 +1078,33 @@ class _StudioPageState extends State<StudioPage> {
                                 variant: _panel == i
                                     ? FButtonVariant.secondary
                                     : FButtonVariant.ghost,
-                                onPressed: () => setState(() => _panel = i),
+                                onPressed: () => setState(() {
+                                  _panel = i;
+                                  if (i == 0) _parts = false;
+                                }),
                                 child: Text(label),
                               ),
                             ),
                         ],
+                      ),
+                    ),
+                  if (!wide && _panel == 1)
+                    SizedBox(
+                      height: 56,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        itemCount: BlockKind.values.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) => CanvasPart(
+                          kind: BlockKind.values[index],
+                          onDragStarted: () => setState(() => _arrange = true),
+                          touch: true,
+                          onAdd: () => _addPart(BlockKind.values[index]),
+                        ),
                       ),
                     ),
                   Expanded(
