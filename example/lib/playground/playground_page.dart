@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../platform/browser.dart' as browser;
 import '../site/site_widgets.dart';
 import 'document.dart';
+import 'canvas_editor.dart';
 import 'render.dart';
 
 class PlaygroundPage extends StatefulWidget {
@@ -158,14 +159,17 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
       ),
       Expanded(
         child: _layers
-            ? ReorderableListView.builder(
+            ? ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: _document.blocks.length,
-                onReorderItem: _controller.move,
                 itemBuilder: (context, i) {
-                  final block = _document.blocks[i];
+                  final block = _document.orderedBlocks[i];
                   return ListTile(
                     key: ValueKey(block.id),
+                    contentPadding: EdgeInsets.only(
+                      left: 8.0 + _document.depthOf(block.id) * 12,
+                      right: 8,
+                    ),
                     dense: true,
                     selected: _controller.selectedId == block.id,
                     leading: Icon(blockIcon(block.kind), size: 18),
@@ -202,9 +206,10 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                   for (final kind in BlockKind.values)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: Draggable<BlockKind>(
-                        data: kind,
-                        maxSimultaneousDrags: _document.blocks.length < 100
+                      child: Draggable<BlockDrag>(
+                        data: BlockDrag.create(kind),
+                        maxSimultaneousDrags:
+                            _controller.canInsert(_controller.insertionParent)
                             ? 1
                             : 0,
                         feedback: Material(
@@ -220,7 +225,10 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                           variant: FButtonVariant.outline,
                           leading: Icon(blockIcon(kind)),
                           trailing: const Icon(Icons.add, size: 14),
-                          onPressed: _document.blocks.length >= 100
+                          onPressed:
+                              !_controller.canInsert(
+                                _controller.insertionParent,
+                              )
                               ? null
                               : () {
                                   _controller.add(kind);
@@ -254,6 +262,7 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
 
   Widget _inspector() {
     final block = _controller.selected;
+    final siblings = _document.childrenOf(block?.parentId);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -287,7 +296,11 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
           ].contains(block.kind))
             PropertyField(
               key: ValueKey('${block.id}-title'),
-              label: block.kind == BlockKind.text ? 'Content' : 'Label',
+              label: block.kind.isLayout
+                  ? 'Layout name'
+                  : block.kind == BlockKind.text
+                  ? 'Content'
+                  : 'Label',
               value: block.title,
               maxLength: 2000,
               onChanged: (value) =>
@@ -361,6 +374,60 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                   _controller.update(block.copyWith(value: value ? 1 : 0)),
             ),
           ],
+          if (block.kind.isLayout) ...[
+            for (final (label, value, max) in [
+              ('Layout padding', block.padding, 64.0),
+              ('Layout spacing', block.gap, 48.0),
+            ]) ...[
+              Text('$label · ${value.round()} px'),
+              FSlider(
+                value: value,
+                max: max,
+                divisions: max.toInt() ~/ 2,
+                onChanged: (value) => _controller.update(
+                  label == 'Layout padding'
+                      ? block.copyWith(padding: value)
+                      : block.copyWith(gap: value),
+                ),
+              ),
+            ],
+            if (block.kind == BlockKind.row)
+              FSwitch(
+                value: block.responsive,
+                label: 'Stack on narrow screens',
+                onChanged: (value) =>
+                    _controller.update(block.copyWith(responsive: value)),
+              ),
+            const SizedBox(height: 12),
+            const Text(
+              'Select this layout, then add blocks to place them inside.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 16),
+          FField(
+            label: 'Move into',
+            child: FSelect<String>(
+              value: block.parentId ?? '',
+              items: {
+                '': 'Screen root',
+                for (final parent in _document.orderedBlocks)
+                  if (parent.kind.isLayout &&
+                      _controller.canMove(block.id, parent.id))
+                    parent.id:
+                        '${'  ' * _document.depthOf(parent.id)}${_document.labelFor(parent)}',
+              },
+              onChanged: (value) {
+                if (value == null || value == (block.parentId ?? '')) return;
+                final parentId = value.isEmpty ? null : value;
+                _controller.moveBlock(
+                  block.id,
+                  parentId: parentId,
+                  index: _document.childrenOf(parentId).length,
+                );
+              },
+            ),
+          ),
           const SizedBox(height: 24),
           Wrap(
             spacing: 6,
@@ -370,31 +437,25 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                 tooltip: 'Move up',
                 variant: FButtonVariant.outline,
                 size: FButtonSize.icon,
-                onPressed: _document.blocks.first.id == block.id
+                onPressed: siblings.first.id == block.id
                     ? null
-                    : () {
-                        final i = _document.blocks.indexOf(block);
-                        _controller.move(i, i - 1);
-                      },
+                    : () => _controller.moveSibling(block.id, -1),
                 child: const Icon(Icons.arrow_upward),
               ),
               FButton(
                 tooltip: 'Move down',
                 variant: FButtonVariant.outline,
                 size: FButtonSize.icon,
-                onPressed: _document.blocks.last.id == block.id
+                onPressed: siblings.last.id == block.id
                     ? null
-                    : () {
-                        final i = _document.blocks.indexOf(block);
-                        _controller.move(i, i + 1);
-                      },
+                    : () => _controller.moveSibling(block.id, 1),
                 child: const Icon(Icons.arrow_downward),
               ),
               FButton(
                 tooltip: 'Duplicate block',
                 variant: FButtonVariant.outline,
                 size: FButtonSize.icon,
-                onPressed: _document.blocks.length >= 100
+                onPressed: !_controller.canDuplicate(block.id)
                     ? null
                     : () => _controller.duplicate(block.id),
                 child: const Icon(Icons.copy_outlined),
@@ -487,8 +548,13 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
         ),
       ),
       Expanded(
-        child: DragTarget<BlockKind>(
-          onAcceptWithDetails: (details) => _controller.add(details.data),
+        child: DragTarget<BlockDrag>(
+          onWillAcceptWithDetails: (details) =>
+              !_interact &&
+              details.data.kind != null &&
+              _controller.canInsert(null),
+          onAcceptWithDetails: (details) =>
+              _controller.add(details.data.kind!, parentId: null),
           builder: (context, candidates, rejected) => CustomPaint(
             painter: DotGridPainter(color: FTheme.of(context).colors.border),
             child: Container(
@@ -538,98 +604,16 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                                     constraints: const BoxConstraints(
                                       maxWidth: 640,
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        if (_document.blocks.isEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 48,
-                                            ),
-                                            child: Column(
-                                              children: [
-                                                const Icon(
-                                                  Icons.add_box_outlined,
-                                                  size: 32,
-                                                ),
-                                                const SizedBox(height: 16),
-                                                const Text('A fresh canvas.'),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Add a component to get started.',
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    color: FTheme.of(
-                                                      context,
-                                                    ).colors.mutedForeground,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        for (final (i, block)
-                                            in _document.blocks.indexed) ...[
-                                          if (i > 0)
-                                            SizedBox(height: _document.gap),
-                                          Semantics(
-                                            key: ValueKey('canvas-${block.id}'),
-                                            selected:
-                                                !_interact &&
-                                                _controller.selectedId ==
-                                                    block.id,
-                                            button: !_interact,
-                                            label: _interact
-                                                ? null
-                                                : 'Select ${block.kind.label}',
-                                            child: GestureDetector(
-                                              behavior: HitTestBehavior.opaque,
-                                              onTap: _interact
-                                                  ? null
-                                                  : () {
-                                                      _controller.select(
-                                                        block.id,
-                                                      );
-                                                      if (MediaQuery.sizeOf(
-                                                            context,
-                                                          ).width <
-                                                          1100) {
-                                                        setState(
-                                                          () => _panel = 2,
-                                                        );
-                                                      }
-                                                    },
-                                              child: DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        _document.radius,
-                                                      ),
-                                                  border:
-                                                      !_interact &&
-                                                          _controller
-                                                                  .selectedId ==
-                                                              block.id
-                                                      ? Border.all(
-                                                          color: const Color(
-                                                            0xFF2563EB,
-                                                          ),
-                                                          width: 2,
-                                                        )
-                                                      : null,
-                                                ),
-                                                child: AbsorbPointer(
-                                                  absorbing: !_interact,
-                                                  child: ScreenBlockView(
-                                                    key: ValueKey(block.id),
-                                                    block: block,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
+                                    child: ScreenCanvasContent(
+                                      controller: _controller,
+                                      interact: _interact,
+                                      onSelect: (id) {
+                                        _controller.select(id);
+                                        if (MediaQuery.sizeOf(context).width <
+                                            1100) {
+                                          setState(() => _panel = 2);
+                                        }
+                                      },
                                     ),
                                   ),
                                 ),
@@ -784,6 +768,7 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                         'Welcome',
                         'Settings',
                         'Dashboard',
+                        'Layouts',
                         'Blank',
                       ])
                         FButton(
@@ -868,6 +853,9 @@ IconData blockIcon(BlockKind kind) => switch (kind) {
   BlockKind.spacer => Icons.height,
   BlockKind.avatar => Icons.account_circle_outlined,
   BlockKind.chart => Icons.bar_chart,
+  BlockKind.row => Icons.view_column_outlined,
+  BlockKind.column => Icons.view_agenda_outlined,
+  BlockKind.container => Icons.crop_square,
 };
 
 class PropertyField extends StatefulWidget {
@@ -938,7 +926,7 @@ class _ImportProjectDialogState extends State<_ImportProjectDialog> {
     } catch (_) {
       setState(
         () => _error =
-            'Invalid project. Check the JSON and use a version 1 Flappa export.',
+            'Invalid project. Use a Flappa export with valid layouts (version 1 or 2).',
       );
       return;
     }
@@ -957,7 +945,7 @@ class _ImportProjectDialogState extends State<_ImportProjectDialog> {
         FInput(
           controller: _text,
           semanticLabel: 'Project JSON',
-          placeholder: '{ "version": 1, … }',
+          placeholder: '{ "version": 2, … }',
           maxLines: 8,
         ),
         if (_error != null)
