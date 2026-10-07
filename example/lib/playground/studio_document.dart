@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'document.dart';
+import 'canvas_editor.dart';
 
 enum FlowTransition { slide, fade, instant }
 
@@ -279,6 +280,119 @@ class StudioController extends ChangeNotifier {
             if (document.find(entry.key)?.kind == BlockKind.button)
               entry.key: entry.value,
         },
+      ),
+    );
+  }
+
+  bool canDropBlock(BlockDrag drag, String screenId, String? parentId) {
+    final target = project.find(screenId);
+    if (target == null) return false;
+    final editor = PlaygroundController(target.document);
+    try {
+      if (drag.kind != null) return editor.canInsert(parentId);
+      if (drag.sourceId == screenId) return editor.canMove(drag.id!, parentId);
+      final source = project.find(drag.sourceId ?? '');
+      final root = source?.document.find(drag.id);
+      if (source == null || root == null || !editor.canInsert(parentId)) {
+        return false;
+      }
+      final ids = source.document.subtreeIds(root.id);
+      final height =
+          ids.map(source.document.depthOf).reduce((a, b) => a > b ? a : b) -
+          source.document.depthOf(root.id);
+      final depth = parentId == null
+          ? 0
+          : target.document.depthOf(parentId) + 1;
+      return target.document.blocks.length + ids.length <= 100 &&
+          depth + height < 8;
+    } finally {
+      editor.dispose();
+    }
+  }
+
+  void dropBlock(BlockDrag drag, String screenId, String? parentId, int index) {
+    if (!canDropBlock(drag, screenId, parentId)) return;
+    final target = project.find(screenId)!;
+    final siblings = target.document.childrenOf(parentId);
+    if (index < 0 || index > siblings.length) return;
+    if (drag.kind != null || drag.sourceId == screenId) {
+      final editor = PlaygroundController(target.document);
+      try {
+        if (drag.kind != null) {
+          editor.add(drag.kind!, parentId: parentId, index: index);
+        } else {
+          final oldIndex = siblings.indexWhere((b) => b.id == drag.id);
+          editor.moveBlock(
+            drag.id!,
+            parentId: parentId,
+            index: oldIndex >= 0 && oldIndex < index ? index - 1 : index,
+          );
+        }
+        selectedId = screenId;
+        replaceDocument(screenId, editor.document);
+      } finally {
+        editor.dispose();
+      }
+      return;
+    }
+    final source = project.find(drag.sourceId!)!;
+    final ids = source.document.subtreeIds(drag.id!);
+    final used = target.document.blocks.map((b) => b.id).toSet();
+    final remapped = <String, String>{};
+    var serial = 0;
+    for (final id in ids) {
+      var candidate = id;
+      while (!used.add(candidate)) {
+        candidate = 'moved_${serial++}';
+      }
+      remapped[id] = candidate;
+    }
+    final moved = [
+      for (final block in source.document.orderedBlocks)
+        if (ids.contains(block.id))
+          block.copyWith(
+            id: remapped[block.id],
+            parentId: block.id == drag.id ? parentId : remapped[block.parentId],
+          ),
+    ];
+    final blocks = [...target.document.blocks];
+    blocks.insertAll(
+      index == siblings.length
+          ? blocks.length
+          : blocks.indexOf(siblings[index]),
+      moved,
+    );
+    final nextSource = source.copyWith(
+      document: source.document.copyWith(
+        blocks: source.document.blocks
+            .where((b) => !ids.contains(b.id))
+            .toList(),
+      ),
+      actions: {
+        for (final entry in source.actions.entries)
+          if (!ids.contains(entry.key)) entry.key: entry.value,
+      },
+    );
+    final nextTarget = target.copyWith(
+      document: target.document.copyWith(blocks: blocks),
+      actions: {
+        ...target.actions,
+        for (final entry in source.actions.entries)
+          if (ids.contains(entry.key)) remapped[entry.key]!: entry.value,
+      },
+    );
+    selectedId = screenId;
+    commit(
+      project.copyWith(
+        screens: [
+          for (final screen in project.screens)
+            if (screen.id == source.id)
+              nextSource
+            else if (screen.id == target.id)
+              nextTarget
+            else
+              screen,
+        ],
       ),
     );
   }
