@@ -6,7 +6,7 @@ Browse thirteen sections, switch between light and dark themes, adjust accent co
 
 For native mobile component testing, launch an Android emulator or iOS Simulator, find it with `flutter devices`, and run `flutter run -t lib/main_components.dart -d <device-id>`. This entry point opens the component gallery directly, without the website landing page or a browser phone frame. In VS Code, select **Flappa UI components (emulator or device)** and choose your simulator or connected phone. Test typing, touch gestures, dialogs, and device rotation using the emulator controls.
 
-See the [package README](../README.md) for installation, component APIs, and source-copy commands.
+See the [package README](../README.md) for installation and source-copy commands, or the [component guide](../doc/components.md) for APIs.
 
 The app opens on the landing page. The browser routes are `/#/`, `/#/components`, and `/#/playground`; hash routing works with a static web server. The landing page links to the component explorer and the visual playground.
 
