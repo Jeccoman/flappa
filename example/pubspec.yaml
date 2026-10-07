@@ -9,6 +9,7 @@ dependencies:
     sdk: flutter
   flappa_ui:
     path: ../
+  url_launcher: ^6.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
