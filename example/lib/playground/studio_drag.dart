@@ -112,6 +112,8 @@ class _DraggableArtboardState extends State<DraggableArtboard> {
             interact: false,
             sourceId: widget.screen.id,
             showHandles: true,
+            onDelete: (id) =>
+                widget.controller.removeBlock(widget.screen.id, id),
             onSelect: (id) {
               widget.controller.select(widget.screen.id);
               setState(() => _editor.select(id));
