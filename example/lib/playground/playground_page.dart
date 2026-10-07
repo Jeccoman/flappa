@@ -13,8 +13,18 @@ class PlaygroundPage extends StatefulWidget {
     super.key,
     required this.onHome,
     required this.onComponents,
+    this.initialDocument,
+    this.onDocumentChanged,
+    this.onCanvas,
+    this.persistDraft = true,
+    this.designWidth,
   });
   final VoidCallback onHome, onComponents;
+  final ScreenDocument? initialDocument;
+  final ValueChanged<ScreenDocument>? onDocumentChanged;
+  final VoidCallback? onCanvas;
+  final bool persistDraft;
+  final double? designWidth;
   @override
   State<PlaygroundPage> createState() => _PlaygroundPageState();
 }
@@ -30,8 +40,10 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
   @override
   void initState() {
     super.initState();
-    ScreenDocument? initial;
-    final stored = browser.readDraft();
+    ScreenDocument? initial = widget.initialDocument;
+    final stored = widget.persistDraft && initial == null
+        ? browser.readDraft()
+        : null;
     if (stored != null) {
       try {
         initial = ScreenDocument.decode(stored);
@@ -48,14 +60,17 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
     final encoded = _document.encode();
     if (encoded != _saved) {
       _saved = encoded;
+      widget.onDocumentChanged?.call(_document);
       _status = 'Saving…';
       _saveTimer?.cancel();
       _saveTimer = Timer(const Duration(milliseconds: 400), () {
-        final saved = browser.saveDraft(encoded);
+        final saved = !widget.persistDraft || browser.saveDraft(encoded);
         if (mounted) {
           setState(
             () => _status = saved
-                ? 'Saved in this browser'
+                ? widget.persistDraft
+                      ? 'Saved in this browser'
+                      : 'Saved to canvas'
                 : 'In memory · export to keep',
           );
         }
@@ -67,7 +82,7 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
   @override
   void dispose() {
     _saveTimer?.cancel();
-    browser.saveDraft(_document.encode());
+    if (widget.persistDraft) browser.saveDraft(_document.encode());
     _controller.dispose();
     super.dispose();
   }
@@ -565,7 +580,9 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
               child: Align(
                 alignment: Alignment.topCenter,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
+                  constraints: BoxConstraints(
+                    maxWidth: widget.designWidth ?? 800,
+                  ),
                   child: Theme(
                     data: documentTheme(_document).toThemeData(),
                     child: Builder(
@@ -708,6 +725,13 @@ class _PlaygroundPageState extends State<PlaygroundPage> {
                                 fontSize: 11,
                                 color: c.mutedForeground,
                               ),
+                            ),
+                          if (widget.onCanvas != null)
+                            FButton(
+                              variant: FButtonVariant.outline,
+                              leading: const Icon(Icons.arrow_back),
+                              onPressed: widget.onCanvas,
+                              child: const Text('All screens'),
                             ),
                           FButton(
                             tooltip: 'Undo',
