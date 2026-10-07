@@ -50,10 +50,11 @@ const FCodeBlock(
   filename: 'save_button.dart',
   maxHeight: 360,
   showLineNumbers: true,
+  wrapLines: true,
 )
 ```
 
-The highlighter provides display-oriented token coloring for Dart, YAML, shell, and JSON; use `FCodeLanguage.plain` for other source. It preserves original whitespace, supports selection across lines, and copies the exact source without the line-number gutter. Long lines scroll horizontally and tall snippets scroll within `maxHeight`. Colors adapt to light/dark themes. Copy success/failure appears in the toolbar.
+The highlighter provides display-oriented token coloring for Dart, YAML, shell, and JSON; use `FCodeLanguage.plain` for other source. It preserves original whitespace, supports selection across lines, and copies the exact source without the line-number gutter. Long lines scroll horizontally by default; use the toolbar toggle or `wrapLines: true` to wrap them. The gutter stays fixed during horizontal scrolling and numbers follow logical lines when wrapping. Set `showWrapToggle: false` to hide the toggle. Tall snippets scroll within `maxHeight`. Colors adapt to light/dark themes. Copy success/failure appears in the toolbar.
 
 Set `fontFamily` to a monospace font bundled by your app. The showcase bundles [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) and its [OFL license](https://github.com/Jeccoman/flappa/blob/main/example/assets/fonts/OFL.txt); the component defaults to `monospace`. Copy this component with `dart run flappa_ui add code_block`.
 
