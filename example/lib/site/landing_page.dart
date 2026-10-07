@@ -251,6 +251,8 @@ class _LandingPageState extends State<LandingPage> {
                                     ).colors.mutedForeground,
                                   ),
                                 ),
+                                const SizedBox(height: 8),
+                                const PackageLink(),
                                 SizedBox(height: narrow ? 40 : 54),
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -476,10 +478,9 @@ class _LandingPageState extends State<LandingPage> {
                                     maxWidth: 550,
                                   ),
                                   child: FCodeBlock(
-                                    code: 'dart run flappa_ui add all',
+                                    code: 'flutter pub add flappa_ui',
                                     language: FCodeLanguage.bash,
-                                    filename:
-                                        'After adding flappa_ui to your project',
+                                    filename: 'Install from your Flutter app',
                                     fontFamily: 'JetBrainsMono',
                                     showLineNumbers: false,
                                   ),
@@ -524,8 +525,7 @@ class _LandingPageState extends State<LandingPage> {
                                         onPressed: () async {
                                           await Clipboard.setData(
                                             const ClipboardData(
-                                              text:
-                                                  'dart run flappa_ui add all',
+                                              text: 'flutter pub add flappa_ui',
                                             ),
                                           );
                                           if (context.mounted) {
