@@ -2,7 +2,7 @@ import 'package:flappa_ui/flappa_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../main.dart' show ShowcaseApp;
-import '../playground/playground_page.dart';
+import '../playground/studio_page.dart';
 import 'landing_page.dart';
 
 enum SiteSection { home, components, playground }
@@ -89,7 +89,7 @@ class SiteRouter extends RouterDelegate<SiteSection> with ChangeNotifier {
         MaterialPage<void>(
           key: ValueKey(_section),
           child: _section == SiteSection.playground
-              ? PlaygroundPage(
+              ? StudioPage(
                   onHome: () => go(SiteSection.home),
                   onComponents: () => go(SiteSection.components),
                 )
