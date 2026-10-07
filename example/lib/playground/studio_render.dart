@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'document.dart';
+import 'devices.dart';
 import 'render.dart';
 import 'studio_document.dart';
 
@@ -47,23 +48,26 @@ class ArtboardContent extends StatelessWidget {
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
         ),
-        body: SingleChildScrollView(
-          padding: EdgeInsets.all(document.padding),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child:
-                  content ??
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final (i, block)
-                          in document.childrenOf(null).indexed) ...[
-                        if (i > 0) SizedBox(height: document.gap),
-                        blockView(block),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(document.padding),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child:
+                    content ??
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final (i, block)
+                            in document.childrenOf(null).indexed) ...[
+                          if (i > 0) SizedBox(height: document.gap),
+                          blockView(block),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+              ),
             ),
           ),
         ),
@@ -93,19 +97,22 @@ class _FlowPlayerState extends State<FlowPlayer> {
     reverseTransitionDuration: Duration(
       milliseconds: transition == FlowTransition.instant ? 0 : 240,
     ),
-    pageBuilder: (context, animation, secondaryAnimation) => ArtboardContent(
+    pageBuilder: (context, animation, secondaryAnimation) => DeviceStage(
       screen: screen,
-      allowBack: !first,
-      onAction: (action) {
-        if (action.target == ScreenAction.back) {
-          _navigator.currentState!.maybePop();
-        } else {
-          final target = widget.project.find(action.target);
-          if (target != null) {
-            _navigator.currentState!.push(_route(target, action.transition));
+      child: ArtboardContent(
+        screen: screen,
+        allowBack: !first,
+        onAction: (action) {
+          if (action.target == ScreenAction.back) {
+            _navigator.currentState!.maybePop();
+          } else {
+            final target = widget.project.find(action.target);
+            if (target != null) {
+              _navigator.currentState!.push(_route(target, action.transition));
+            }
           }
-        }
-      },
+        },
+      ),
     ),
     transitionsBuilder: (context, animation, secondaryAnimation, child) =>
         switch (transition) {
@@ -225,6 +232,9 @@ String exportStudioPrompt(StudioProject project, {String? screenId}) {
   for (final screen in selected) {
     final document = screen.document;
     out
+      ..writeln(
+        'Device: ${screen.device.label}; ${screen.size.width > screen.size.height ? 'landscape' : 'portrait'}; ${screen.finish.name} finish. Device frames are presentation only; the exported Flutter app uses the host device safe areas.',
+      )
       ..writeln('SCREEN ${screen.id}: ${jsonEncode(document.name)}')
       ..writeln(
         'Design size: ${screen.size.width.round()} × ${screen.size.height.round()} logical pixels; adapt to available space.',
@@ -256,4 +266,33 @@ String exportStudioPrompt(StudioProject project, {String? screenId}) {
       ..writeln();
   }
   return out.toString();
+}
+
+class DeviceStage extends StatelessWidget {
+  const DeviceStage({super.key, required this.screen, required this.child});
+  final Artboard screen;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    if (screen.device.kind == DeviceKind.none) return child;
+    return ColoredBox(
+      color: const Color(0xFFF0F0F2),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: DeviceFrame(
+              device: screen.device,
+              screenSize: screen.size,
+              landscape: screen.landscape,
+              finish: screen.finish,
+              dark: screen.document.dark,
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
