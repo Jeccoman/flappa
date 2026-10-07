@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Canvas adds component and screen trash buttons, focused Delete/Backspace shortcuts, and undoable deletion of nested layouts and their links.
+
 - Canvas adds selectable realistic phone, tablet, laptop, and monitor frames with rotation, finishes, safe areas, and device-aware flow testing and PNG export.
 
 - Canvas supports component palette drag-and-drop, nested insertion, block reordering, and atomic cross-screen moves with touch support.
