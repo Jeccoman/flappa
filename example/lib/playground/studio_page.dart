@@ -813,6 +813,19 @@ class _StudioPageState extends State<StudioPage> {
                     onPressed: () => _edit(screen),
                     child: const Icon(Icons.edit_outlined, size: 16),
                   ),
+                  FButton(
+                    key: ValueKey('delete-screen-${screen.id}'),
+                    tooltip: 'Delete screen ${screen.document.name}',
+                    size: FButtonSize.icon,
+                    variant: FButtonVariant.ghost,
+                    onPressed: _project.screens.length > 1
+                        ? () {
+                            _controller.select(screen.id);
+                            _controller.remove();
+                          }
+                        : null,
+                    child: const Icon(Icons.delete_outline, size: 16),
+                  ),
                 ],
               ),
             ),
@@ -843,7 +856,7 @@ class _StudioPageState extends State<StudioPage> {
                 child: GestureDetector(
                   key: ValueKey('artboard-${screen.id}'),
                   onTap: () => _controller.select(screen.id),
-                  onDoubleTap: () => _edit(screen),
+                  onDoubleTap: _arrange ? null : () => _edit(screen),
                   child: RepaintBoundary(
                     key: _images.putIfAbsent(screen.id, GlobalKey.new),
                     child: DeviceFrame(
