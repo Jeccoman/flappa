@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import '../platform/browser.dart' as browser;
 import '../site/site_widgets.dart';
 import 'document.dart';
+import 'devices.dart';
 import 'canvas_editor.dart';
 import 'studio_drag.dart';
 import 'playground_page.dart';
@@ -104,8 +105,8 @@ class _StudioPageState extends State<StudioPage> {
         (s) => Rect.fromLTWH(
           s.position.dx,
           s.position.dy,
-          s.size.width,
-          s.size.height + 48,
+          s.frameSize.width,
+          s.frameSize.height + 48,
         ),
       )
       .reduce((a, b) => a.expandToInclude(b));
@@ -500,30 +501,83 @@ class _StudioPageState extends State<StudioPage> {
         ),
         const SizedBox(height: 16),
         FField(
-          label: 'Artboard size',
+          label: 'Device',
           child: FSelect<String>(
-            value: '${screen.size.width.round()}x${screen.size.height.round()}',
+            key: ValueKey('device-${screen.id}'),
+            value: screen.deviceId,
             items: {
-              '390x844': 'Phone · 390 × 844',
-              '768x1024': 'Tablet · 768 × 1024',
-              '1280x800': 'Desktop · 1280 × 800',
-              if (![
-                const Size(390, 844),
-                const Size(768, 1024),
-                const Size(1280, 800),
-              ].contains(screen.size))
-                '${screen.size.width.round()}x${screen.size.height.round()}':
-                    'Custom · ${screen.size.width.round()} × ${screen.size.height.round()}',
+              for (final device in CanvasDevice.all) device.id: device.label,
             },
             onChanged: (value) {
               if (value == null) return;
-              final parts = value.split('x').map(double.parse).toList();
-              _controller.update(
-                screen.copyWith(size: Size(parts[0], parts[1])),
-              );
+              _controller.update(screen.withDevice(CanvasDevice.find(value)!));
+              _fit(selected: true);
             },
           ),
         ),
+        if (screen.device.kind != DeviceKind.none) ...[
+          const SizedBox(height: 12),
+          Text(
+            '${screen.size.width.round()} × ${screen.size.height.round()} · ${screen.device.canRotate ? (screen.landscape ? 'Landscape' : 'Portrait') : 'Landscape'}',
+            style: TextStyle(fontSize: 12, color: c.mutedForeground),
+          ),
+          const SizedBox(height: 12),
+          FField(
+            label: 'Finish',
+            child: FSelect<DeviceFinish>(
+              value: screen.finish,
+              items: const {
+                DeviceFinish.graphite: 'Graphite',
+                DeviceFinish.silver: 'Silver',
+                DeviceFinish.blue: 'Blue',
+              },
+              onChanged: (value) {
+                if (value != null) {
+                  _controller.update(screen.copyWith(finish: value));
+                }
+              },
+            ),
+          ),
+          if (screen.device.canRotate) ...[
+            const SizedBox(height: 12),
+            FButton(
+              variant: FButtonVariant.outline,
+              leading: const Icon(Icons.screen_rotation_outlined),
+              onPressed: () {
+                _controller.update(screen.rotated());
+                _fit(selected: true);
+              },
+              child: const Text('Rotate device'),
+            ),
+          ],
+        ],
+        if (screen.device.kind == DeviceKind.none)
+          FField(
+            label: 'Artboard size',
+            child: FSelect<String>(
+              value:
+                  '${screen.size.width.round()}x${screen.size.height.round()}',
+              items: {
+                '390x844': 'Phone · 390 × 844',
+                '768x1024': 'Tablet · 768 × 1024',
+                '1280x800': 'Desktop · 1280 × 800',
+                if (![
+                  const Size(390, 844),
+                  const Size(768, 1024),
+                  const Size(1280, 800),
+                ].contains(screen.size))
+                  '${screen.size.width.round()}x${screen.size.height.round()}':
+                      'Custom · ${screen.size.width.round()} × ${screen.size.height.round()}',
+              },
+              onChanged: (value) {
+                if (value == null) return;
+                final parts = value.split('x').map(double.parse).toList();
+                _controller.update(
+                  screen.copyWith(size: Size(parts[0], parts[1])),
+                );
+              },
+            ),
+          ),
         const SizedBox(height: 16),
         FButton(
           onPressed: () => _edit(screen),
@@ -677,8 +731,8 @@ class _StudioPageState extends State<StudioPage> {
     return Positioned(
       left: _position(screen).dx,
       top: _position(screen).dy,
-      width: screen.size.width,
-      height: screen.size.height + 48,
+      width: screen.frameSize.width,
+      height: screen.frameSize.height + 48,
       child: Column(
         children: [
           GestureDetector(
@@ -766,19 +820,23 @@ class _StudioPageState extends State<StudioPage> {
           Expanded(
             child: Container(
               foregroundDecoration: BoxDecoration(
-                border: Border.all(
-                  color: selected ? c.foreground : c.border,
-                  width: selected ? 2 : 1,
-                ),
+                border: screen.device.kind != DeviceKind.none
+                    ? null
+                    : Border.all(
+                        color: selected ? c.foreground : c.border,
+                        width: selected ? 2 : 1,
+                      ),
               ),
               decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .05),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                boxShadow: screen.device.kind != DeviceKind.none
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .05),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
               ),
               child: Padding(
                 padding: EdgeInsets.zero,
@@ -788,7 +846,12 @@ class _StudioPageState extends State<StudioPage> {
                   onDoubleTap: () => _edit(screen),
                   child: RepaintBoundary(
                     key: _images.putIfAbsent(screen.id, GlobalKey.new),
-                    child: ClipRect(
+                    child: DeviceFrame(
+                      device: screen.device,
+                      screenSize: screen.size,
+                      landscape: screen.landscape,
+                      finish: screen.finish,
+                      dark: screen.document.dark,
                       child: _arrange && !_capturing
                           ? DraggableArtboard(
                               key: ValueKey('editable-${screen.id}'),
@@ -1156,9 +1219,11 @@ class _FlowPainter extends CustomPainter {
         if (target == null || target.id == screen.id) continue;
         final forward = position(target).dx >= position(screen).dx;
         final start =
-            position(screen) + Offset(forward ? screen.size.width : 0, 100);
+            position(screen) +
+            Offset(forward ? screen.frameSize.width : 0, 100);
         final end =
-            position(target) + Offset(forward ? 0 : target.size.width, 100);
+            position(target) +
+            Offset(forward ? 0 : target.frameSize.width, 100);
         final bend =
             math.max(64.0, (end.dx - start.dx).abs() / 2) * (forward ? 1 : -1);
         final path = Path()
