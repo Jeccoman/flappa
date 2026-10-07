@@ -131,7 +131,7 @@ void main() {
         .widgetList<FCodeBlock>(find.byType(FCodeBlock))
         .map((block) => block.language);
     expect(languages, [
-      FCodeLanguage.yaml,
+      FCodeLanguage.bash,
       FCodeLanguage.dart,
       FCodeLanguage.bash,
     ]);
