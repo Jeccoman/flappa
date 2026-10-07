@@ -41,8 +41,10 @@ class ScreenBlockView extends StatefulWidget {
     super.key,
     required this.block,
     this.children = const [],
+    this.onPressed,
   });
   final ScreenBlock block;
+  final VoidCallback? onPressed;
   final List<Widget> children;
   @override
   State<ScreenBlockView> createState() => _ScreenBlockViewState();
@@ -88,7 +90,8 @@ class _ScreenBlockViewState extends State<ScreenBlockView> {
         child: FInput(placeholder: block.detail, semanticLabel: block.title),
       ),
       BlockKind.button => FButton(
-        onPressed: () => showFToast(context, title: block.title),
+        onPressed:
+            widget.onPressed ?? () => showFToast(context, title: block.title),
         variant: FButtonVariant.values[block.variant],
         child: Text(block.title),
       ),
@@ -195,7 +198,13 @@ class ScreenLayout extends StatelessWidget {
 
 String dartString(String value) => jsonEncode(value).replaceAll(r'$', r'\$');
 
-String exportDart(ScreenDocument document) {
+String exportDart(
+  ScreenDocument document, {
+  String screenClass = 'GeneratedScreen',
+  bool includeEntrypoint = true,
+  Map<String, String> buttonActions = const {},
+  bool allowBack = false,
+}) {
   late String Function(ScreenBlock) blockCode;
   String childrenCode(List<ScreenBlock> blocks, double gap, bool horizontal) =>
       [
@@ -254,7 +263,7 @@ String exportDart(ScreenDocument document) {
       BlockKind.input =>
         'FField(label: $title, child: FInput(placeholder: $detail, semanticLabel: $title))',
       BlockKind.button =>
-        'FButton(onPressed: () => showFToast(context, title: $title), variant: FButtonVariant.${FButtonVariant.values[block.variant].name}, child: Text($title))',
+        'FButton(onPressed: ${buttonActions[block.id] ?? '() => showFToast(context, title: $title)'}, variant: FButtonVariant.${FButtonVariant.values[block.variant].name}, child: Text($title))',
       BlockKind.card =>
         'FCard(title: Text($title), description: Text($detail))',
       BlockKind.badge =>
@@ -291,7 +300,8 @@ String exportDart(ScreenDocument document) {
       '              ${blockCode(block)},',
     ],
   ].join('\n');
-  return '''import 'package:flutter/material.dart';
+  final entrypoint =
+      '''import 'package:flutter/material.dart';
 import 'package:flappa_ui/flappa_ui.dart';
 
 void main() {
@@ -300,21 +310,26 @@ void main() {
     title: ${dartString(document.name)},
     themeMode: ThemeMode.light,
     theme: FThemeData(brightness: Brightness.$brightness, radius: ${document.radius}, colors: $theme),
-    home: const GeneratedScreen(),
+    home: const $screenClass(),
   ));
 }
 
-class GeneratedScreen extends StatefulWidget {
-  const GeneratedScreen({super.key});
+''';
+  return '''${includeEntrypoint ? entrypoint : ''}
+class $screenClass extends StatefulWidget {
+  const $screenClass({super.key});
   @override
-  State<GeneratedScreen> createState() => _GeneratedScreenState();
+  State<$screenClass> createState() => _${screenClass}State();
 }
 
-class _GeneratedScreenState extends State<GeneratedScreen> {
+class _${screenClass}State extends State<$screenClass> {
 $fields
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(${dartString(document.name)}, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), automaticallyImplyLeading: false),
+  Widget build(BuildContext context) {
+    final colors = FColors.zinc(brightness: Brightness.$brightness);
+    final theme = FThemeData(brightness: Brightness.$brightness, radius: ${document.radius}, colors: $theme);
+    return Theme(data: theme.toThemeData(), child: Builder(builder: (context) => Scaffold(
+    appBar: AppBar(title: Text(${dartString(document.name)}, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), automaticallyImplyLeading: $allowBack),
     body: SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(${document.padding}),
@@ -331,7 +346,8 @@ $children
         ),
       ),
     ),
-  );
+  )));
+  }
 }
 ''';
 }
