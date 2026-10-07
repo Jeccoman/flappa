@@ -16,9 +16,16 @@ enum BlockKind {
   spacer,
   avatar,
   chart,
+  row,
+  column,
+  container,
 }
 
 extension BlockLabel on BlockKind {
+  bool get isLayout =>
+      this == BlockKind.row ||
+      this == BlockKind.column ||
+      this == BlockKind.container;
   String get label => switch (this) {
     BlockKind.heading => 'Heading',
     BlockKind.text => 'Text',
@@ -34,8 +41,13 @@ extension BlockLabel on BlockKind {
     BlockKind.spacer => 'Spacer',
     BlockKind.avatar => 'Avatar',
     BlockKind.chart => 'Bar chart',
+    BlockKind.row => 'Row',
+    BlockKind.column => 'Column',
+    BlockKind.container => 'Container',
   };
 }
+
+const _unchangedParent = Object();
 
 class ScreenBlock {
   const ScreenBlock({
@@ -45,11 +57,18 @@ class ScreenBlock {
     this.detail = '',
     this.value = .6,
     this.variant = 0,
+    this.parentId,
+    this.padding = 16,
+    this.gap = 12,
+    this.responsive = true,
   });
   final String id, title, detail;
   final BlockKind kind;
   final double value;
   final int variant;
+  final String? parentId;
+  final double padding, gap;
+  final bool responsive;
 
   ScreenBlock copyWith({
     String? id,
@@ -57,6 +76,10 @@ class ScreenBlock {
     String? detail,
     double? value,
     int? variant,
+    Object? parentId = _unchangedParent,
+    double? padding,
+    double? gap,
+    bool? responsive,
   }) => ScreenBlock(
     id: id ?? this.id,
     kind: kind,
@@ -64,15 +87,25 @@ class ScreenBlock {
     detail: detail ?? this.detail,
     value: value ?? this.value,
     variant: variant ?? this.variant,
+    parentId: identical(parentId, _unchangedParent)
+        ? this.parentId
+        : parentId as String?,
+    padding: padding ?? this.padding,
+    gap: gap ?? this.gap,
+    responsive: responsive ?? this.responsive,
   );
 
-  Map<String, Object> toJson() => {
+  Map<String, Object?> toJson() => {
     'id': id,
     'kind': kind.name,
     'title': title,
     'detail': detail,
     'value': value,
     'variant': variant,
+    'parentId': parentId,
+    'padding': padding,
+    'gap': gap,
+    'responsive': responsive,
   };
 
   factory ScreenBlock.fromJson(Map<String, dynamic> json) {
@@ -87,6 +120,22 @@ class ScreenBlock {
         json['value'] is! num ||
         json['variant'] is! int) {
       throw const FormatException('Invalid component properties.');
+    }
+    final parent = json['parentId'];
+    final padding = json['padding'] ?? 16;
+    final gap = json['gap'] ?? 12;
+    final responsive = json['responsive'] ?? true;
+    if ((parent != null && (parent is! String || parent.isEmpty)) ||
+        padding is! num ||
+        !padding.isFinite ||
+        padding < 0 ||
+        padding > 64 ||
+        gap is! num ||
+        !gap.isFinite ||
+        gap < 0 ||
+        gap > 48 ||
+        responsive is! bool) {
+      throw const FormatException('Invalid layout properties.');
     }
     final value = (json['value'] as num).toDouble();
     final variant = json['variant'] as int;
@@ -106,6 +155,10 @@ class ScreenBlock {
       detail: json['detail'],
       value: value,
       variant: variant,
+      parentId: parent as String?,
+      padding: padding.toDouble(),
+      gap: gap.toDouble(),
+      responsive: responsive,
     );
   }
 }
@@ -126,6 +179,54 @@ class ScreenDocument {
   final bool dark;
   final List<ScreenBlock> blocks;
 
+  List<ScreenBlock> childrenOf(String? parentId) =>
+      blocks.where((block) => block.parentId == parentId).toList();
+
+  ScreenBlock? find(String? id) =>
+      blocks.where((block) => block.id == id).firstOrNull;
+
+  String labelFor(ScreenBlock block) => block.title.isNotEmpty
+      ? block.title
+      : '${block.kind.label} ${blocks.where((b) => b.kind == block.kind).toList().indexOf(block) + 1}';
+
+  int depthOf(String id) {
+    var depth = 0;
+    var current = find(id);
+    final seen = <String>{};
+    while (current?.parentId != null) {
+      if (!seen.add(current!.id)) throw const FormatException('Cyclic layout.');
+      current = find(current.parentId);
+      depth++;
+    }
+    return depth;
+  }
+
+  Set<String> subtreeIds(String id) {
+    final result = <String>{};
+    void visit(String current) {
+      if (!result.add(current)) return;
+      for (final child in childrenOf(current)) {
+        visit(child.id);
+      }
+    }
+
+    visit(id);
+    return result;
+  }
+
+  List<ScreenBlock> get orderedBlocks {
+    final result = <ScreenBlock>[];
+    void visit(String? parentId) {
+      for (final block in childrenOf(parentId)) {
+        result.add(block);
+        visit(block.id);
+      }
+    }
+
+    visit(null);
+    return result;
+  }
+
   ScreenDocument copyWith({
     String? name,
     double? padding,
@@ -145,7 +246,7 @@ class ScreenDocument {
   );
 
   String encode() => const JsonEncoder.withIndent('  ').convert({
-    'version': 1,
+    'version': 2,
     'name': name,
     'padding': padding,
     'gap': gap,
@@ -161,7 +262,7 @@ class ScreenDocument {
     }
     final json = jsonDecode(source);
     if (json is! Map<String, dynamic> ||
-        json['version'] != 1 ||
+        ![1, 2].contains(json['version']) ||
         json['name'] is! String ||
         (json['name'] as String).length > 120 ||
         json['dark'] is! bool ||
@@ -189,7 +290,7 @@ class ScreenDocument {
     if (blocks.map((b) => b.id).toSet().length != blocks.length) {
       throw const FormatException('Component identifiers must be unique.');
     }
-    return ScreenDocument(
+    final document = ScreenDocument(
       name: json['name'],
       dark: json['dark'],
       accent: json['accent'],
@@ -198,6 +299,16 @@ class ScreenDocument {
       radius: dimension('radius', 24),
       blocks: blocks,
     );
+    for (final block in blocks) {
+      if (block.parentId != null &&
+          !(document.find(block.parentId)?.kind.isLayout ?? false)) {
+        throw const FormatException('Missing layout parent.');
+      }
+      if (document.depthOf(block.id) >= 8) {
+        throw const FormatException('Layouts support up to eight levels.');
+      }
+    }
+    return document;
   }
 }
 
@@ -277,6 +388,40 @@ ScreenDocument templateDocument(String template) {
         ),
       ],
     ),
+    'Layouts' => ScreenDocument(
+      name: 'A little room to grow',
+      blocks: [
+        block(BlockKind.heading, 0, title: 'Your workspace.'),
+        block(BlockKind.row, 1),
+        block(BlockKind.container, 2).copyWith(parentId: 'block_1'),
+        block(BlockKind.container, 3).copyWith(parentId: 'block_1'),
+        block(
+          BlockKind.heading,
+          4,
+          title: 'Create',
+        ).copyWith(parentId: 'block_2'),
+        block(
+          BlockKind.text,
+          5,
+          title: 'Make space for your next idea.',
+        ).copyWith(parentId: 'block_2'),
+        block(
+          BlockKind.button,
+          6,
+          title: 'New project',
+        ).copyWith(parentId: 'block_2'),
+        block(
+          BlockKind.heading,
+          7,
+          title: 'Connect',
+        ).copyWith(parentId: 'block_3'),
+        block(
+          BlockKind.toggle,
+          8,
+          title: 'Weekly updates',
+        ).copyWith(parentId: 'block_3'),
+      ],
+    ),
     'Blank' => ScreenDocument(blocks: []),
     _ => ScreenDocument(
       name: 'Welcome aboard',
@@ -311,11 +456,10 @@ class PlaygroundController extends ChangeNotifier {
   ScreenDocument get document => _document;
   bool get canUndo => _past.isNotEmpty;
   bool get canRedo => _future.isNotEmpty;
-  ScreenBlock? get selected =>
-      _document.blocks.where((b) => b.id == selectedId).firstOrNull;
+  ScreenBlock? get selected => _document.find(selectedId);
 
   void select(String? id) {
-    selectedId = id;
+    selectedId = _document.find(id)?.id;
     notifyListeners();
   }
 
@@ -341,48 +485,137 @@ class PlaygroundController extends ChangeNotifier {
     return id;
   }
 
-  void add(BlockKind kind) {
-    if (_document.blocks.length >= 100) return;
-    final block = newBlock(kind, _id());
+  String? get insertionParent =>
+      selected?.kind.isLayout == true ? selectedId : selected?.parentId;
+
+  bool canInsert(String? parentId) =>
+      _document.blocks.length < 100 &&
+      (parentId == null ||
+          (_document.find(parentId)?.kind.isLayout == true &&
+              _document.depthOf(parentId) < 7));
+
+  void add(BlockKind kind, {Object? parentId = _unchangedParent, int? index}) {
+    final parent = identical(parentId, _unchangedParent)
+        ? insertionParent
+        : parentId as String?;
+    if (!canInsert(parent)) return;
+    final block = newBlock(kind, _id()).copyWith(parentId: parent);
+    final siblings = _document.childrenOf(parent);
+    final position = index ?? siblings.length;
+    if (position < 0 || position > siblings.length) return;
+    final blocks = [..._document.blocks];
+    blocks.insert(
+      position == siblings.length
+          ? blocks.length
+          : blocks.indexOf(siblings[position]),
+      block,
+    );
     selectedId = block.id;
-    commit(_document.copyWith(blocks: [..._document.blocks, block]));
+    commit(_document.copyWith(blocks: blocks));
   }
 
-  void update(ScreenBlock block) => commit(
-    _document.copyWith(
-      blocks: [
-        for (final current in _document.blocks)
-          if (current.id == block.id) block else current,
-      ],
-    ),
-  );
-  void remove(String id) => commit(
-    _document.copyWith(
-      blocks: _document.blocks.where((b) => b.id != id).toList(),
-    ),
-  );
+  void update(ScreenBlock block) {
+    final current = _document.find(block.id);
+    if (current == null ||
+        current.kind != block.kind ||
+        current.parentId != block.parentId) {
+      return;
+    }
+    commit(
+      _document.copyWith(
+        blocks: [
+          for (final current in _document.blocks)
+            if (current.id == block.id) block else current,
+        ],
+      ),
+    );
+  }
+
+  void remove(String id) {
+    final ids = _document.subtreeIds(id);
+    commit(
+      _document.copyWith(
+        blocks: _document.blocks.where((b) => !ids.contains(b.id)).toList(),
+      ),
+    );
+  }
+
+  bool canDuplicate(String id) =>
+      _document.find(id) != null &&
+      _document.blocks.length + _document.subtreeIds(id).length <= 100;
+
   void duplicate(String id) {
-    if (_document.blocks.length >= 100) return;
-    final index = _document.blocks.indexWhere((b) => b.id == id);
-    if (index < 0) return;
+    if (!canDuplicate(id)) return;
+    final ids = _document.subtreeIds(id);
+    final copies = {for (final id in ids) id: _id()};
+    final subtree = _document.orderedBlocks.where((b) => ids.contains(b.id));
     final blocks = [..._document.blocks];
-    final copy = blocks[index].copyWith(id: _id());
-    blocks.insert(index + 1, copy);
-    selectedId = copy.id;
+    final clones = [
+      for (final block in subtree)
+        block.copyWith(
+          id: copies[block.id],
+          parentId: copies[block.parentId] ?? block.parentId,
+        ),
+    ];
+    blocks.insertAll(blocks.indexWhere((b) => b.id == id) + 1, clones);
+    selectedId = copies[id];
     commit(_document.copyWith(blocks: blocks));
+  }
+
+  bool canMove(String id, String? parentId) {
+    final block = _document.find(id);
+    if (block == null) return false;
+    if (parentId != null && _document.find(parentId)?.kind.isLayout != true) {
+      return false;
+    }
+    final subtree = _document.subtreeIds(id);
+    if (subtree.contains(parentId)) return false;
+    final height =
+        subtree.map(_document.depthOf).reduce((a, b) => a > b ? a : b) -
+        _document.depthOf(id);
+    return (parentId == null ? 0 : _document.depthOf(parentId) + 1) + height <
+        8;
+  }
+
+  void moveBlock(String id, {required String? parentId, required int index}) {
+    if (!canMove(id, parentId)) return;
+    final block = _document.find(id)!;
+    if (block.parentId == parentId &&
+        _document.childrenOf(parentId).indexOf(block) == index) {
+      return;
+    }
+    final siblings = _document
+        .childrenOf(parentId)
+        .where((b) => b.id != id)
+        .toList();
+    if (index < 0 || index > siblings.length) return;
+    final blocks = _document.blocks.where((b) => b.id != id).toList();
+    blocks.insert(
+      index == siblings.length
+          ? blocks.length
+          : blocks.indexOf(siblings[index]),
+      block.copyWith(parentId: parentId),
+    );
+    commit(_document.copyWith(blocks: blocks));
+  }
+
+  void moveSibling(String id, int delta) {
+    final block = _document.find(id);
+    if (block == null) return;
+    final siblings = _document.childrenOf(block.parentId);
+    moveBlock(
+      id,
+      parentId: block.parentId,
+      index: siblings.indexOf(block) + delta,
+    );
   }
 
   void move(int from, int to) {
-    if (from < 0 ||
-        from >= _document.blocks.length ||
-        to < 0 ||
-        to >= _document.blocks.length ||
-        from == to) {
+    final roots = _document.childrenOf(null);
+    if (from < 0 || from >= roots.length || to < 0 || to >= roots.length) {
       return;
     }
-    final blocks = [..._document.blocks];
-    blocks.insert(to, blocks.removeAt(from));
-    commit(_document.copyWith(blocks: blocks));
+    moveBlock(roots[from].id, parentId: null, index: to);
   }
 
   void undo() {
