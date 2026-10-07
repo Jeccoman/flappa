@@ -1,5 +1,7 @@
 # Flappa UI showcase
 
+[Live site](https://jeccoman.github.io/flappa/) · [Components](https://jeccoman.github.io/flappa/#/components) · [Playground](https://jeccoman.github.io/flappa/#/playground)
+
 Run `flutter pub get` and `flutter run -d chrome` from this directory.
 
 Browse thirteen sections, switch between light and dark themes, adjust accent color/radius, and expand component source code. Use Command+K or Control+K to search. All account/invitation actions are local demonstrations with no backend.
@@ -9,6 +11,8 @@ For native mobile component testing, launch an Android emulator or iOS Simulator
 See the [package README](../README.md) for installation and source-copy commands, or the [component guide](../doc/components.md) for APIs.
 
 The app opens on the landing page. The browser routes are `/#/`, `/#/components`, and `/#/playground`; hash routing works with a static web server. The landing page links to the component explorer and the visual playground.
+
+GitHub Actions publishes the site to GitHub Pages after formatting, analysis, tests, and the release build pass on `main`. The build uses `flutter build web --release --base-href /flappa/` so assets load from the repository's Pages path. Pull requests run the checks without deploying. To redeploy the current version, run the **Flutter** workflow manually from GitHub Actions.
 
 The playground builds single-column screens with 14 block types. Click a block in the palette or drag it onto the canvas, select it to edit properties, and reorder it from Layers or the move buttons. Use Interact to test inputs and controls. Screen settings configure spacing, padding, radius, accent, and dark mode. Try the Welcome, Settings, Dashboard, or Blank starters; replacing a screen can be undone.
 
