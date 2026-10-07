@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'extra_demos.dart';
 import 'site/site_app.dart';
+import 'site/site_widgets.dart' show PackageLink;
 import 'survey_chart_demos.dart';
 import 'widgets/demo_card.dart';
 
@@ -593,14 +594,14 @@ class _ShowcasePageState extends State<ShowcasePage> {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'dart run flappa_ui add all',
+                  'flutter pub add flappa_ui',
                   style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
                 ),
               ),
               FButton(
                 onPressed: () async {
                   await Clipboard.setData(
-                    const ClipboardData(text: 'dart run flappa_ui add all'),
+                    const ClipboardData(text: 'flutter pub add flappa_ui'),
                   );
                   if (mounted) showFToast(context, title: 'Command copied');
                 },
@@ -2089,16 +2090,17 @@ class _ComponentDemosState extends State<ComponentDemos> {
       ),
       const SizedBox(height: 24),
       const FCard(
-        title: Text('01 · Add the local package'),
+        title: Text('01 · Install Flappa UI'),
         description: Text(
-          'Point your app to this workspace in pubspec.yaml, then run flutter pub get.',
+          'Run this from your Flutter app. Requires Flutter 3.38+ and Dart 3.10+.',
         ),
         child: CodeBlock(
-          "dependencies:\n  flutter:\n    sdk: flutter\n  flappa_ui:\n    path: /path/to/flappa\n\nflutter:\n  uses-material-design: true",
-          language: FCodeLanguage.yaml,
-          filename: 'pubspec.yaml',
+          'flutter pub add flappa_ui',
+          language: FCodeLanguage.bash,
+          filename: 'Terminal',
         ),
       ),
+      const Align(alignment: Alignment.centerLeft, child: PackageLink()),
       const SizedBox(height: 20),
       const FCard(
         title: Text('02 · Set the foundation'),
