@@ -1,3 +1,13 @@
+## 0.2.0
+
+- Code blocks support line wrapping, a wrap toggle, a fixed line-number gutter, and distinct JSON/YAML key highlighting.
+- Clipboard operations prevent overlapping requests and report failures without claiming success.
+- Playground adds nested rows, columns, containers, responsive layouts, and a Layouts starter.
+- Canvas drag handles and drop targets support reordering and moving blocks between layouts, with inspector controls as an alternative.
+- Subtree duplication, deletion, undo/redo, and Dart export preserve nested structure and control state.
+- Project format v2 supports up to 100 blocks and eight levels; existing v1 projects and browser drafts still load.
+- Icon buttons expose tooltip labels to assistive technology. Canvas blocks support keyboard selection, and playground inputs retain accessible labels in generated code.
+
 ## 0.1.0
 
 - Initial release with 71 component widgets and six overlay helpers.
