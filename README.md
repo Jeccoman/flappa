@@ -4,6 +4,8 @@ A shadcn-inspired Flutter UI library with light and dark themes, composable comp
 
 Includes a component explorer, a source-copy CLI, and a visual screen playground with Dart export.
 
+[Live site](https://jeccoman.github.io/flappa/) · [Components](https://jeccoman.github.io/flappa/#/components) · [Playground](https://jeccoman.github.io/flappa/#/playground) · [pub.dev](https://pub.dev/packages/flappa_ui)
+
 Requires Flutter 3.38+ and Dart 3.10+.
 
 ## Install
