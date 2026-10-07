@@ -1,0 +1,15 @@
+*.iml
+*.ipr
+*.iws
+*.log
+*.pyc
+*.swp
+/pubspec.lock
+/build/
+/coverage/
+/screenshots/
+/tool/
+/test/
+/yo.md
+/example/*
+!/example/example.dart
