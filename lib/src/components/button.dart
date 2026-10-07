@@ -105,32 +105,41 @@ class FButton extends StatelessWidget {
       ),
       child: IconTheme.merge(
         data: const IconThemeData(size: 16),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (loading) ...[
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: fg,
-                  semanticsLabel: 'Loading',
+        child: Semantics(
+          label: size == FButtonSize.icon ? tooltip : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (loading) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: fg,
+                    semanticsLabel: 'Loading',
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-            ] else if (leading != null) ...[
-              leading!,
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ] else if (leading != null) ...[
+                leading!,
+                const SizedBox(width: 8),
+              ],
+              Flexible(child: child),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
             ],
-            Flexible(child: child),
-            if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-          ],
+          ),
         ),
       ),
     );
-    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+    return tooltip == null
+        ? button
+        : Tooltip(
+            message: tooltip!,
+            excludeFromSemantics: size == FButtonSize.icon,
+            child: button,
+          );
   }
 }
 
@@ -147,13 +156,15 @@ class FToggle extends StatelessWidget {
   final Widget child;
   final String? tooltip;
   @override
-  Widget build(BuildContext context) => Semantics(
-    toggled: value,
-    child: FButton(
-      onPressed: onChanged == null ? null : () => onChanged!(!value),
-      variant: value ? FButtonVariant.secondary : FButtonVariant.ghost,
-      tooltip: tooltip,
-      child: child,
+  Widget build(BuildContext context) => MergeSemantics(
+    child: Semantics(
+      toggled: value,
+      child: FButton(
+        onPressed: onChanged == null ? null : () => onChanged!(!value),
+        variant: value ? FButtonVariant.secondary : FButtonVariant.ghost,
+        tooltip: tooltip,
+        child: child,
+      ),
     ),
   );
 }
