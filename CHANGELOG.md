@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Canvas adds selectable realistic phone, tablet, laptop, and monitor frames with rotation, finishes, safe areas, and device-aware flow testing and PNG export.
+
 - Canvas supports component palette drag-and-drop, nested insertion, block reordering, and atomic cross-screen moves with touch support.
 
 - Website: multi-screen canvas with movable artboards, zoom, device sizes, navigation links, and interactive flows.
