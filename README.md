@@ -1,6 +1,6 @@
 # Flappa UI
 
-A shadcn-inspired Flutter UI library with light and dark themes, composable components, and source you can own.
+Build Flutter apps with Flappa components such as `FButton`, `FInput`, and `FCard` through one public import. Includes shadcn-inspired styling, light and dark themes, and source you can own.
 
 Includes a component explorer, a source-copy CLI, and a visual canvas with connected screens, interactive flows, and Flutter code export.
 
@@ -33,6 +33,8 @@ void main() => runApp(
   ),
 );
 ```
+
+See the [runnable example](example/example.dart) for form validation, controlled state, and save feedback using the same public API.
 
 ## Run the site
 
