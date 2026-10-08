@@ -41,7 +41,15 @@ class _DemoCardState extends State<DemoCard> {
             ),
           ),
         ),
-        if (_code) ...[const SizedBox(height: 12), CodeBlock(widget.code)],
+        if (_code) ...[
+          const SizedBox(height: 12),
+          const CodeBlock(
+            "import 'package:flappa_ui/flappa_ui.dart';",
+            filename: 'Import once',
+          ),
+          const SizedBox(height: 12),
+          CodeBlock(widget.code),
+        ],
       ],
     ),
   );
