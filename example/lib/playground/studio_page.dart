@@ -29,6 +29,7 @@ class StudioPage extends StatefulWidget {
 
 class _StudioPageState extends State<StudioPage> {
   static const storageKey = 'flappa.canvas.v1';
+  static const _canvasOrigin = Offset(11000, 11000);
   late final StudioController _controller;
   final _transform = TransformationController();
   final _images = <String, GlobalKey>{};
@@ -39,7 +40,8 @@ class _StudioPageState extends State<StudioPage> {
   bool _fitted = false, _dirty = false;
   bool _parts = true, _arrange = true, _capturing = false;
   Size _viewport = Size.zero;
-  Offset? _dragPosition, _dragPointer;
+  Offset? _dragPosition, _dragPointer, _dragOrigin;
+  double _dragScale = 1;
   String? _dragId;
   StudioProject get _project => _controller.project;
 
@@ -100,6 +102,45 @@ class _StudioPageState extends State<StudioPage> {
 
   Offset _position(Artboard screen) =>
       _dragId == screen.id ? _dragPosition! : screen.position;
+  Offset _scenePosition(Artboard screen) => _position(screen) + _canvasOrigin;
+
+  void _startMove(Artboard screen, DragStartDetails details) {
+    _controller.select(screen.id);
+    setState(() {
+      _dragId = screen.id;
+      _dragOrigin = screen.position;
+      _dragPosition = screen.position;
+      _dragPointer = details.globalPosition;
+      _dragScale = _transform.value.getMaxScaleOnAxis();
+    });
+  }
+
+  void _move(DragUpdateDetails details) {
+    if (_dragId == null) return;
+    final position =
+        _dragOrigin! + (details.globalPosition - _dragPointer!) / _dragScale;
+    setState(
+      () => _dragPosition = Offset(
+        position.dx.clamp(-10000, 10000),
+        position.dy.clamp(-10000, 10000),
+      ),
+    );
+  }
+
+  void _finishMove({bool cancel = false}) {
+    final screen = _project.find(_dragId ?? '');
+    final position = _dragPosition;
+    setState(() {
+      _dragId = null;
+      _dragPosition = null;
+      _dragPointer = null;
+      _dragOrigin = null;
+    });
+    if (!cancel && screen != null && position != null) {
+      _controller.update(screen.copyWith(position: position));
+    }
+  }
+
   Rect _bounds(Iterable<Artboard> screens) => screens
       .map(
         (s) => Rect.fromLTWH(
@@ -120,8 +161,8 @@ class _StudioPageState extends State<StudioPage> {
         .clamp(.2, 1.0);
     _transform.value = Matrix4.identity()
       ..translateByDouble(
-        _viewport.width / 2 - bounds.center.dx * scale,
-        _viewport.height / 2 - bounds.center.dy * scale,
+        _viewport.width / 2 - (bounds.center.dx + _canvasOrigin.dx) * scale,
+        _viewport.height / 2 - (bounds.center.dy + _canvasOrigin.dy) * scale,
         0,
         1,
       )
@@ -729,160 +770,141 @@ class _StudioPageState extends State<StudioPage> {
     final selected = _controller.selectedId == screen.id;
     final c = FTheme.of(context).colors;
     return Positioned(
-      left: _position(screen).dx,
-      top: _position(screen).dy,
+      key: ValueKey('board-${screen.id}'),
+      left: _scenePosition(screen).dx,
+      top: _scenePosition(screen).dy,
       width: screen.frameSize.width,
       height: screen.frameSize.height + 48,
-      child: Column(
-        children: [
-          GestureDetector(
-            key: ValueKey('artboard-handle-${screen.id}'),
-            dragStartBehavior: DragStartBehavior.down,
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _controller.select(screen.id),
-            onPanStart: (details) {
-              _controller.select(screen.id);
-              setState(() {
-                _dragId = screen.id;
-                _dragPosition = screen.position;
-                _dragPointer = details.globalPosition;
-              });
-            },
-            onPanUpdate: (details) => setState(() {
-              _dragPosition = Offset(
-                (screen.position.dx +
-                        (details.globalPosition.dx - _dragPointer!.dx) /
-                            _transform.value.getMaxScaleOnAxis())
-                    .clamp(0, 10000),
-                (screen.position.dy +
-                        (details.globalPosition.dy - _dragPointer!.dy) /
-                            _transform.value.getMaxScaleOnAxis())
-                    .clamp(0, 10000),
-              );
-            }),
-            onPanEnd: (_) {
-              final position = Offset(
-                (_dragPosition!.dx / 8).round() * 8.0,
-                (_dragPosition!.dy / 8).round() * 8.0,
-              );
-              setState(() {
-                _dragId = null;
-                _dragPosition = null;
-              });
-              _controller.update(screen.copyWith(position: position));
-            },
-            onPanCancel: () => setState(() {
-              _dragId = null;
-              _dragPosition = null;
-            }),
-            child: SizedBox(
-              height: 48,
-              child: Row(
-                children: [
-                  Icon(
-                    screen.id == _project.startId
-                        ? Icons.flag_outlined
-                        : Icons.drag_indicator,
-                    size: 18,
-                    color: selected ? c.foreground : c.mutedForeground,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      screen.document.name.isEmpty
-                          ? 'Untitled screen'
-                          : screen.document.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: c.foreground,
+      child: Listener(
+        onPointerCancel: (_) {
+          if (_dragId == screen.id) _finishMove(cancel: true);
+        },
+        child: Column(
+          children: [
+            GestureDetector(
+              key: ValueKey('artboard-handle-${screen.id}'),
+              dragStartBehavior: DragStartBehavior.down,
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _controller.select(screen.id),
+              onPanStart: (details) => _startMove(screen, details),
+              onPanUpdate: _move,
+              onPanEnd: (_) => _finishMove(),
+              onPanCancel: () => _finishMove(cancel: true),
+              child: SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    Icon(
+                      screen.id == _project.startId
+                          ? Icons.flag_outlined
+                          : Icons.drag_indicator,
+                      size: 18,
+                      color: selected ? c.foreground : c.mutedForeground,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        screen.document.name.isEmpty
+                            ? 'Untitled screen'
+                            : screen.document.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: c.foreground,
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    '${screen.size.width.round()} × ${screen.size.height.round()}',
-                    style: TextStyle(fontSize: 10, color: c.mutedForeground),
-                  ),
-                  const SizedBox(width: 8),
-                  FButton(
-                    tooltip: 'Edit ${screen.document.name}',
-                    size: FButtonSize.icon,
-                    variant: FButtonVariant.ghost,
-                    onPressed: () => _edit(screen),
-                    child: const Icon(Icons.edit_outlined, size: 16),
-                  ),
-                  FButton(
-                    key: ValueKey('delete-screen-${screen.id}'),
-                    tooltip: 'Delete screen ${screen.document.name}',
-                    size: FButtonSize.icon,
-                    variant: FButtonVariant.ghost,
-                    onPressed: _project.screens.length > 1
-                        ? () {
-                            _controller.select(screen.id);
-                            _controller.remove();
-                          }
-                        : null,
-                    child: const Icon(Icons.delete_outline, size: 16),
-                  ),
-                ],
+                    Text(
+                      '${screen.size.width.round()} × ${screen.size.height.round()}',
+                      style: TextStyle(fontSize: 10, color: c.mutedForeground),
+                    ),
+                    const SizedBox(width: 8),
+                    FButton(
+                      tooltip: 'Edit ${screen.document.name}',
+                      size: FButtonSize.icon,
+                      variant: FButtonVariant.ghost,
+                      onPressed: () => _edit(screen),
+                      child: const Icon(Icons.edit_outlined, size: 16),
+                    ),
+                    FButton(
+                      key: ValueKey('delete-screen-${screen.id}'),
+                      tooltip: 'Delete screen ${screen.document.name}',
+                      size: FButtonSize.icon,
+                      variant: FButtonVariant.ghost,
+                      onPressed: _project.screens.length > 1
+                          ? () {
+                              _controller.select(screen.id);
+                              _controller.remove();
+                            }
+                          : null,
+                      child: const Icon(Icons.delete_outline, size: 16),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: Container(
-              foregroundDecoration: BoxDecoration(
-                border: screen.device.kind != DeviceKind.none
-                    ? null
-                    : Border.all(
-                        color: selected ? c.foreground : c.border,
-                        width: selected ? 2 : 1,
-                      ),
-              ),
-              decoration: BoxDecoration(
-                boxShadow: screen.device.kind != DeviceKind.none
-                    ? []
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: .05),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
+            Expanded(
+              child: Container(
+                foregroundDecoration: BoxDecoration(
+                  border: screen.device.kind != DeviceKind.none
+                      ? null
+                      : Border.all(
+                          color: selected ? c.foreground : c.border,
+                          width: selected ? 2 : 1,
                         ),
-                      ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.zero,
-                child: GestureDetector(
-                  key: ValueKey('artboard-${screen.id}'),
-                  onTap: () => _controller.select(screen.id),
-                  onDoubleTap: _arrange ? null : () => _edit(screen),
-                  child: RepaintBoundary(
-                    key: _images.putIfAbsent(screen.id, GlobalKey.new),
-                    child: DeviceFrame(
-                      device: screen.device,
-                      screenSize: screen.size,
-                      landscape: screen.landscape,
-                      finish: screen.finish,
-                      dark: screen.document.dark,
-                      child: _arrange && !_capturing
-                          ? DraggableArtboard(
-                              key: ValueKey('editable-${screen.id}'),
-                              screen: screen,
-                              controller: _controller,
-                            )
-                          : AbsorbPointer(
-                              child: ExcludeSemantics(
-                                child: ArtboardContent(screen: screen),
+                ),
+                decoration: BoxDecoration(
+                  boxShadow: screen.device.kind != DeviceKind.none
+                      ? []
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: .05),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                ),
+                child: Padding(
+                  padding: EdgeInsets.zero,
+                  child: GestureDetector(
+                    key: ValueKey('artboard-${screen.id}'),
+                    behavior: HitTestBehavior.opaque,
+                    dragStartBehavior: DragStartBehavior.down,
+                    onPanStart: (details) => _startMove(screen, details),
+                    onPanUpdate: _move,
+                    onPanEnd: (_) => _finishMove(),
+                    onPanCancel: () => _finishMove(cancel: true),
+                    onTap: () => _controller.select(screen.id),
+                    onDoubleTap: _arrange ? null : () => _edit(screen),
+                    child: RepaintBoundary(
+                      key: _images.putIfAbsent(screen.id, GlobalKey.new),
+                      child: DeviceFrame(
+                        device: screen.device,
+                        screenSize: screen.size,
+                        landscape: screen.landscape,
+                        finish: screen.finish,
+                        dark: screen.document.dark,
+                        child: _arrange && !_capturing
+                            ? DraggableArtboard(
+                                key: ValueKey('editable-${screen.id}'),
+                                screen: screen,
+                                controller: _controller,
+                              )
+                            : AbsorbPointer(
+                                child: ExcludeSemantics(
+                                  child: ArtboardContent(screen: screen),
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -898,11 +920,15 @@ class _StudioPageState extends State<StudioPage> {
         });
       }
       final c = FTheme.of(context).colors;
-      final bounds = _bounds(_project.screens);
       return ColoredBox(
         color: c.muted.withValues(alpha: .3),
         child: Stack(
           children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _CanvasGrid(color: c.border, transform: _transform),
+              ),
+            ),
             Positioned.fill(
               child: InteractiveViewer(
                 transformationController: _transform,
@@ -912,36 +938,37 @@ class _StudioPageState extends State<StudioPage> {
                 boundaryMargin: const EdgeInsets.all(20000),
                 trackpadScrollCausesScale: true,
                 child: SizedBox(
-                  width: math.max(2000, bounds.right + 1000),
-                  height: math.max(1600, bounds.bottom + 1000),
-                  child: CustomPaint(
-                    painter: DotGridPainter(color: c.border),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: _FlowPainter(
-                              project: _project,
-                              color: c.mutedForeground,
-                              position: _position,
-                            ),
+                  width: 24000,
+                  height: 24000,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _FlowPainter(
+                            project: _project,
+                            color: c.mutedForeground,
+                            position: _scenePosition,
                           ),
                         ),
-                        for (final screen in _project.screens) _board(screen),
-                      ],
-                    ),
+                      ),
+                      for (final screen in _project.screens)
+                        if (screen.id != _controller.selectedId) _board(screen),
+                      _board(_controller.selected),
+                    ],
                   ),
                 ),
               ),
             ),
             Positioned(
               left: 16,
+              right: 16,
               top: 12,
               child: IgnorePointer(
                 child: Text(
                   _arrange
-                      ? 'Drag components or their handles · Drop into highlighted slots'
-                      : 'Drag a screen title to move · Double-click to edit',
+                      ? 'Drag a title or device frame to move · Drag block handles to rearrange'
+                      : 'Drag anywhere on a device to move · Double-click to edit',
+                  maxLines: 2,
                   style: TextStyle(fontSize: 11, color: c.mutedForeground),
                 ),
               ),
@@ -961,10 +988,28 @@ class _StudioPageState extends State<StudioPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         FToggle(
+                          value: !_arrange,
+                          onChanged: (value) =>
+                              setState(() => _arrange = !value),
+                          tooltip: 'Move screens',
+                          child: _viewport.width < 600
+                              ? const Icon(
+                                  Icons.open_with,
+                                  semanticLabel: 'Move screens',
+                                )
+                              : const Text('Move screens'),
+                        ),
+                        FToggle(
                           value: _arrange,
                           onChanged: (value) =>
                               setState(() => _arrange = value),
-                          child: const Text('Edit blocks'),
+                          tooltip: 'Edit blocks',
+                          child: _viewport.width < 600
+                              ? const Icon(
+                                  Icons.widgets_outlined,
+                                  semanticLabel: 'Edit blocks',
+                                )
+                              : const Text('Edit blocks'),
                         ),
                         FButton(
                           tooltip: 'Zoom out',
@@ -1208,6 +1253,37 @@ class _StudioPageState extends State<StudioPage> {
       ),
     );
   }
+}
+
+class _CanvasGrid extends CustomPainter {
+  _CanvasGrid({required this.color, required this.transform})
+    : super(repaint: transform);
+  final Color color;
+  final TransformationController transform;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = transform.value.getMaxScaleOnAxis();
+    final step = 24 * scale;
+    final translation = transform.value.getTranslation();
+    final paint = Paint()..color = color;
+    for (
+      double x = (translation.x + 12 * scale) % step;
+      x < size.width;
+      x += step
+    ) {
+      for (
+        double y = (translation.y + 12 * scale) % step;
+        y < size.height;
+        y += step
+      ) {
+        canvas.drawCircle(Offset(x, y), .8 * scale, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CanvasGrid oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.transform != transform;
 }
 
 class _FlowPainter extends CustomPainter {
