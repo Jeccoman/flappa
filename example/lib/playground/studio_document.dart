@@ -216,8 +216,8 @@ class StudioProject {
           finish: finish,
           actions: actions,
           position: Offset(
-            number(map, 'x', 0, 10000),
-            number(map, 'y', 0, 10000),
+            number(map, 'x', -10000, 10000),
+            number(map, 'y', -10000, 10000),
           ),
           size: size,
         ),
@@ -501,7 +501,7 @@ class StudioController extends ChangeNotifier {
 
   Offset _nextPosition() => Offset(
     (selected.position.dx + selected.frameSize.width + 170)
-        .clamp(0, 10000)
+        .clamp(-10000, 10000)
         .toDouble(),
     selected.position.dy,
   );
