@@ -68,22 +68,13 @@ class _ScreenBlockViewState extends State<ScreenBlockView> {
         block: block,
         children: widget.children,
       ),
-      BlockKind.heading => Text(
+      BlockKind.heading => FTypography(
         block.title,
-        style: const TextStyle(
-          fontSize: 32,
-          height: 1.15,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -1,
-        ),
+        variant: FTypographyVariant.h2,
       ),
-      BlockKind.text => Text(
+      BlockKind.text => FTypography(
         block.title,
-        style: TextStyle(
-          fontSize: 14,
-          height: 1.6,
-          color: FTheme.of(context).colors.mutedForeground,
-        ),
+        variant: FTypographyVariant.muted,
       ),
       BlockKind.input => FField(
         label: block.title,
@@ -257,9 +248,9 @@ String exportDart(
       BlockKind.column ||
       BlockKind.container => throw StateError('Layout handled above'),
       BlockKind.heading =>
-        'Text($title, style: const TextStyle(fontSize: 32, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -1))',
+        'FTypography($title, variant: FTypographyVariant.h2)',
       BlockKind.text =>
-        'Text($title, style: TextStyle(fontSize: 14, height: 1.6, color: FTheme.of(context).colors.mutedForeground))',
+        'FTypography($title, variant: FTypographyVariant.muted)',
       BlockKind.input =>
         'FField(label: $title, child: FInput(placeholder: $detail, semanticLabel: $title))',
       BlockKind.button =>
