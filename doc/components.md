@@ -2,6 +2,14 @@
 
 [Back to Flappa UI](../README.md)
 
+## Public package API
+
+Install with `flutter pub add flappa_ui`, then import `package:flappa_ui/flappa_ui.dart`. All components, their models and variants, theme tokens, and overlay helpers are exported from this entry point. Use `FlappaApp` to install the theme, or supply `FThemeData().toThemeData()` to an existing MaterialApp. Import Flutter for layout, text, icons, and application routing; internal `src/` imports are unnecessary.
+
+The [runnable package example](../example/example.dart) combines `FCard`, `FField`, `FInput`, `FSwitch`, `FButton`, and `showFToast` with validation and owned state. Canvas headings and text use `FTypography`, and exported screens use the same public package API as handwritten apps.
+
+New public components must be exported from `lib/flappa_ui.dart`, documented here, demonstrated in the explorer, and covered by interaction tests. Add a playground block when the component has editable screen content; overlays and application-level widgets also need their host callbacks and state.
+
 ## Component catalog
 
 | Group | Components |
