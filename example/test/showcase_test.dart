@@ -105,7 +105,11 @@ void main() {
     await tester.enterText(find.byType(TextFormField), 'My unsaved value');
     await tester.tap(find.byTooltip('Show code'));
     await tester.pumpAndSettle();
-    expect(find.byType(FCodeBlock), findsOneWidget);
+    expect(find.byType(FCodeBlock), findsNWidgets(2));
+    expect(
+      tester.widgetList<FCodeBlock>(find.byType(FCodeBlock)).first.code,
+      "import 'package:flappa_ui/flappa_ui.dart';",
+    );
     expect(find.text('example.dart'), findsOneWidget);
     expect(find.text('My unsaved value'), findsOneWidget);
     expect(find.text('Preview'), findsNothing);
