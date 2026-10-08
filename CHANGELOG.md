@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Package-first examples show the public import, validate real input, and use Flappa typography in canvas rendering and exports. A separate consumer app checks public exports, documented setup, interactive controls, and generated navigation.
+
 - Canvas device frames move freely with a whole-screen move mode, foreground selection for overlaps, negative coordinates, and undoable movement without grid snapping.
 
 - Canvas adds component and screen trash buttons, focused Delete/Backspace shortcuts, and undoable deletion of nested layouts and their links.
