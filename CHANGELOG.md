@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Canvas device frames move freely with a whole-screen move mode, foreground selection for overlaps, negative coordinates, and undoable movement without grid snapping.
+
 - Canvas adds component and screen trash buttons, focused Delete/Backspace shortcuts, and undoable deletion of nested layouts and their links.
 
 - Canvas adds selectable realistic phone, tablet, laptop, and monitor frames with rotation, finishes, safe areas, and device-aware flow testing and PNG export.
