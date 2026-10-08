@@ -2083,9 +2083,9 @@ class _ComponentDemosState extends State<ComponentDemos> {
     children: [
       const FAlert(
         icon: Icons.code,
-        title: Text('Two ways to make it yours'),
+        title: Text('Import Flappa. Build with its components.'),
         description: Text(
-          'Use the package directly, or copy the source into your app. Both share the same API.',
+          'One public import gives you FButton, FInput, FCard, and the rest of the library. Playground exports use the same components.',
         ),
       ),
       const SizedBox(height: 24),
@@ -2105,7 +2105,7 @@ class _ComponentDemosState extends State<ComponentDemos> {
       const FCard(
         title: Text('02 · Set the foundation'),
         description: Text(
-          'Wrap your app with FlappaApp to enable the theme and dark mode.',
+          'Import flappa_ui.dart once, then use FlappaApp and the F-prefixed components. Flutter provides layout, icons, and application routing.',
         ),
         child: CodeBlock(
           "import 'package:flutter/material.dart';\nimport 'package:flappa_ui/flappa_ui.dart';\n\nvoid main() => runApp(FlappaApp(\n  home: Scaffold(\n    body: Center(\n      child: FButton(\n        onPressed: () {},\n        child: const Text('Hello, Flappa'),\n      ),\n    ),\n  ),\n));",
